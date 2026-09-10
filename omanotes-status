@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -x "$DIR/omanotes-engine" ]]; then
+  exec "$DIR/omanotes-engine" "$@"
+else
+  echo "omanotes-engine not found. Run ./build.sh first." >&2
+  exit 1
+fi

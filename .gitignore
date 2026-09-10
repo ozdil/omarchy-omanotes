@@ -1,0 +1,4 @@
+target/
+omanotes-engine
+*.enc
+.tmp_*

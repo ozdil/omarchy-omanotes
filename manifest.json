@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "ozdil.omanotes",
+  "name": "OmaNotes",
+  "version": "1.0.0",
+  "author": "Ozan Özdil (ozdil)",
+  "license": "MIT",
+  "description": "Zero-Knowledge E2EE & Cloud-Sync Google Keep clone for Omarchy Linux",
+  "kinds": ["bar-widget"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "OmaNotes",
+    "description": "Encrypted notes and checklist manager with cloud sync.",
+    "category": "Productivity",
+    "defaultSection": "right",
+    "aliases": ["omanotes", "notes", "keep", "memo", "todo", "notepad"],
+    "allowMultiple": false
+  }
+}
