@@ -35,13 +35,13 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
     }
 
     let mut inner = Sha256::new();
-    inner.update(&i_key_pad);
+    inner.update(i_key_pad);
     inner.update(data);
     let inner_hash = inner.finalize();
 
     let mut outer = Sha256::new();
-    outer.update(&o_key_pad);
-    outer.update(&inner_hash);
+    outer.update(o_key_pad);
+    outer.update(inner_hash);
     outer.finalize().into()
 }
 
@@ -66,14 +66,20 @@ pub fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
 /// Generates a cryptographically secure random 16-byte salt
 pub fn generate_salt() -> Result<[u8; SALT_LEN], String> {
     let mut salt = [0u8; SALT_LEN];
-    getrandom::getrandom(&mut salt).map_err(|e| format!("Failed to generate secure random salt: {}", e))?;
+    getrandom::getrandom(&mut salt)
+        .map_err(|e| format!("Failed to generate secure random salt: {}", e))?;
     Ok(salt)
 }
 
 /// Encrypts bytes using Zero-Knowledge AES-256-GCM
-pub fn encrypt_payload(payload: &[u8], key: &[u8; 32], salt: &[u8]) -> Result<EncryptedEnvelope, String> {
+pub fn encrypt_payload(
+    payload: &[u8],
+    key: &[u8; 32],
+    salt: &[u8],
+) -> Result<EncryptedEnvelope, String> {
     let mut nonce_bytes = [0u8; NONCE_LEN];
-    getrandom::getrandom(&mut nonce_bytes).map_err(|e| format!("Failed to generate random nonce: {}", e))?;
+    getrandom::getrandom(&mut nonce_bytes)
+        .map_err(|e| format!("Failed to generate random nonce: {}", e))?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce = Nonce::from_slice(&nonce_bytes);
@@ -97,19 +103,23 @@ pub fn decrypt_payload(envelope: &EncryptedEnvelope, key: &[u8; 32]) -> Result<V
         return Err(format!("Unsupported envelope version: {}", envelope.v));
     }
 
-    let nonce_bytes = hex::decode(&envelope.nonce).map_err(|e| format!("Invalid nonce hex: {}", e))?;
+    let nonce_bytes =
+        hex::decode(&envelope.nonce).map_err(|e| format!("Invalid nonce hex: {}", e))?;
     if nonce_bytes.len() != NONCE_LEN {
         return Err("Invalid nonce length".to_string());
     }
 
-    let ciphertext_bytes = hex::decode(&envelope.ciphertext).map_err(|e| format!("Invalid ciphertext hex: {}", e))?;
+    let ciphertext_bytes =
+        hex::decode(&envelope.ciphertext).map_err(|e| format!("Invalid ciphertext hex: {}", e))?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     cipher
         .decrypt(nonce, ciphertext_bytes.as_slice())
-        .map_err(|_| "AES-256-GCM decryption failed: invalid password or corrupted data".to_string())
+        .map_err(|_| {
+            "AES-256-GCM decryption failed: invalid password or corrupted data".to_string()
+        })
 }
 
 #[cfg(test)]

@@ -61,35 +61,35 @@ Panel {
   function addFromClipboard(color) {
     actionProc.command = [root.resolveEnginePath(), "--add-clipboard", color || root.newNoteColor]
     actionProc.running = true
-    root.showToast("📋 Panodaki metin not olarak eklendi")
+    root.showToast("📋 Added note from clipboard")
   }
 
   function addTemplate(type) {
     actionProc.command = [root.resolveEnginePath(), "--add-template", type]
     actionProc.running = true
-    var label = (type === "shopping" ? "Alışveriş Listesi" : (type === "daily" ? "Günün Görevleri" : (type === "idea" ? "Yeni Fikir" : "Hatırlatıcı")))
-    root.showToast("➕ " + label + " oluşturuldu")
+    var label = (type === "shopping" ? "Grocery List" : (type === "daily" ? "Daily Priorities" : (type === "idea" ? "New Idea" : "Reminder")))
+    root.showToast("➕ Created " + label)
   }
 
   function duplicateNote(id) {
     if (!id) return
     actionProc.command = [root.resolveEnginePath(), "--duplicate", id]
     actionProc.running = true
-    root.showToast("Not çoğaltıldı")
+    root.showToast("Note duplicated")
   }
 
   function clearCompleted(id) {
     if (!id) return
     actionProc.command = [root.resolveEnginePath(), "--clear-completed", id]
     actionProc.running = true
-    root.showToast("Tamamlanan maddeler temizlendi")
+    root.showToast("Completed items cleared")
   }
 
   function deleteNote(id) {
     if (!id) return
     actionProc.command = [root.resolveEnginePath(), "--delete", id]
     actionProc.running = true
-    root.showToast("Not silindi")
+    root.showToast("Note deleted")
   }
 
   function togglePin(id) {
@@ -102,7 +102,7 @@ Panel {
     if (!id) return
     actionProc.command = [root.resolveEnginePath(), "--toggle-archive", id]
     actionProc.running = true
-    root.showToast("Not arşivi güncellendi")
+    root.showToast("Note archive updated")
   }
 
   function setNoteColor(id, color) {
@@ -125,7 +125,7 @@ Panel {
     actionProc.command = [
       root.resolveEnginePath(),
       "--add",
-      title || "Hızlı Not",
+      title || "Quick Note",
       content,
       root.newNoteColor,
       root.isCreatingChecklist ? "true" : "false",
@@ -135,13 +135,13 @@ Panel {
 
     newNoteTitle = ""
     newNoteContent = ""
-    root.showToast("Not kaydedildi")
+    root.showToast("Note saved")
   }
 
   function saveE2EEPassword() {
     actionProc.command = [root.resolveEnginePath(), "--set-e2ee", root.e2eeInputPassword]
     actionProc.running = true
-    root.showToast(root.e2eeInputPassword ? "E2EE Parolası Güncellendi" : "E2EE Devre Dışı Bırakıldı")
+    root.showToast(root.e2eeInputPassword ? "E2EE Master Password Updated" : "E2EE Encryption Disabled")
   }
 
   function saveCloudSettings() {
@@ -154,7 +154,7 @@ Panel {
       "false"
     ]
     actionProc.running = true
-    root.showToast("Bulut ayarları kaydedildi")
+    root.showToast("Cloud configuration saved")
   }
 
   function triggerCloudSync() {
@@ -162,7 +162,7 @@ Panel {
     root.isSyncing = true
     syncProc.command = [root.resolveEnginePath(), "--sync", root.e2eeInputPassword]
     syncProc.running = true
-    root.showToast("Bulut ile eşitleniyor...")
+    root.showToast("Syncing with cloud...")
   }
 
   function getCardBg(colorKey) {
@@ -264,9 +264,9 @@ Panel {
         try {
           var cleanText = String(text || "").slice(0, 65536)
           var d = JSON.parse(cleanText)
-          root.showToast(d.message || "Senkronizasyon tamamlandı")
+          root.showToast(d.message || "Sync completed")
         } catch (e) {
-          root.showToast("Eşitleme tamamlandı")
+          root.showToast("Sync completed")
         }
         root.refresh()
       }
@@ -304,7 +304,7 @@ Panel {
     text: "󰠮"
     useActiveColor: false
     foreground: root.e2eeEnabled ? Color.accent : (root.bar ? root.bar.foreground : Color.foreground)
-    tooltipText: "OmaNotes: " + root.totalNotes + " not" + (root.e2eeEnabled ? " (E2EE Korumalı)" : "")
+    tooltipText: "OmaNotes: " + root.totalNotes + " notes" + (root.e2eeEnabled ? " (E2EE Protected)" : "")
     onPressed: function(b) {
       root.toggle()
     }
@@ -379,7 +379,7 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              text: root.cloudConfig.last_sync_msg || "Google Keep for Omarchy (Fare/Dokunmatik Uyumlu)"
+              text: root.cloudConfig.last_sync_msg || "Zero-Knowledge Google Keep for Omarchy Linux"
               color: Color.muted
               font.family: root.bar ? root.bar.fontFamily : Style.font.family
               font.pixelSize: Style.font.caption
@@ -395,14 +395,14 @@ Panel {
             spacing: Style.space(6)
 
             Button {
-              text: root.isSyncing ? "Eşitleniyor..." : "Eşitle"
+              text: root.isSyncing ? "Syncing..." : "Sync"
               iconText: "󰓦"
               enabled: !root.isSyncing
               onClicked: root.triggerCloudSync()
             }
 
             Button {
-              text: root.activeView === "settings" ? "Notlar" : "Ayarlar"
+              text: root.activeView === "settings" ? "Notes" : "Settings"
               iconText: root.activeView === "settings" ? "󰠮" : ""
               onClicked: {
                 root.activeView = (root.activeView === "settings" ? "notes" : "settings")
@@ -438,7 +438,7 @@ Panel {
           spacing: Style.space(12)
 
           PanelSectionHeader {
-            text: "Zero-Knowledge Uçtan Uca Şifreleme (E2EE)"
+            text: "Zero-Knowledge End-to-End Encryption (E2EE)"
             width: parent.width
           }
 
@@ -446,7 +446,7 @@ Panel {
             width: parent.width
             wrapMode: Text.Wrap
             textFormat: Text.PlainText
-            text: "Notlar buluta gönderilmeden önce yerelde AES-256-GCM ile şifrelenir. Parolanızı unutursanız şifreli bulut yedeği açılamaz."
+            text: "Notes are encrypted locally with AES-256-GCM before being sent to the cloud. If you lose your master password, encrypted backups cannot be recovered."
             color: Color.muted
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
@@ -459,14 +459,14 @@ Panel {
             TextField {
               id: e2eePwdField
               Layout.fillWidth: true
-              placeholderText: "E2EE Ana Parolasını Girin..."
+              placeholderText: "Enter E2EE Master Password..."
               text: root.e2eeInputPassword
               echoMode: TextInput.Password
               onTextChanged: root.e2eeInputPassword = text
             }
 
             Button {
-              text: "Kaydet"
+              text: "Save Key"
               onClicked: root.saveE2EEPassword()
             }
           }
@@ -474,7 +474,7 @@ Panel {
           PanelSeparator { width: parent.width }
 
           PanelSectionHeader {
-            text: "Bulut Senkronizasyon Sağlayıcısı"
+            text: "Cloud Sync Provider"
             width: parent.width
           }
 
@@ -489,13 +489,13 @@ Panel {
             }
 
             Button {
-              text: "Özel Git Deposu"
+              text: "Private Git Repo"
               selected: root.cloudProviderInput === "git"
               onClicked: root.cloudProviderInput = "git"
             }
 
             Button {
-              text: "Sadece Yerel (Kapalı)"
+              text: "Local Only (Disabled)"
               selected: root.cloudProviderInput === "none"
               onClicked: root.cloudProviderInput = "none"
             }
@@ -508,7 +508,7 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              text: "rclone Hedef Klasörü (Örn: gdrive:OmarchyNotes veya nextcloud:Notes)"
+              text: "rclone Remote Target (e.g. gdrive:OmarchyNotes or nextcloud:Notes)"
               color: Color.muted
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
@@ -528,7 +528,7 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              text: "Yerel Git Depo Dizini (notes.enc içine commit edilir)"
+              text: "Local Git Repository Directory (commits notes.enc)"
               color: Color.muted
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
@@ -543,7 +543,7 @@ Panel {
           }
 
           Button {
-            text: "Bulut Yapılandırmasını Kaydet"
+            text: "Save Cloud Configuration"
             onClicked: root.saveCloudSettings()
           }
         }
@@ -562,24 +562,24 @@ Panel {
             // Primary: Paste from Clipboard as Note (Zero Typing!)
             Button {
               Layout.fillWidth: true
-              text: "📋 Panodan Not Al"
+              text: "📋 Paste from Clipboard"
               iconText: "󰅌"
               onClicked: root.addFromClipboard("yellow")
             }
 
             // Quick templates
             Button {
-              text: "🛒 Alışveriş"
+              text: "🛒 Groceries"
               onClicked: root.addTemplate("shopping")
             }
 
             Button {
-              text: "📅 Görevler"
+              text: "📅 Priorities"
               onClicked: root.addTemplate("daily")
             }
 
             Button {
-              text: "💡 Fikir"
+              text: "💡 Idea"
               onClicked: root.addTemplate("idea")
             }
           }
@@ -590,19 +590,19 @@ Panel {
             spacing: Style.space(6)
 
             Button {
-              text: "Tümü (" + root.totalNotes + ")"
+              text: "All (" + root.totalNotes + ")"
               selected: root.filterMode === "all"
               onClicked: root.filterMode = "all"
             }
 
             Button {
-              text: "📌 Sabit (" + root.pinnedNotesCount + ")"
+              text: "📌 Pinned (" + root.pinnedNotesCount + ")"
               selected: root.filterMode === "pinned"
               onClicked: root.filterMode = "pinned"
             }
 
             Button {
-              text: "󰄲 Görevler"
+              text: "󰄲 Checklist"
               selected: root.filterMode === "checklist"
               onClicked: root.filterMode = "checklist"
             }
@@ -648,14 +648,14 @@ Panel {
 
               TextField {
                 width: parent.width
-                placeholderText: "Başlık (veya doğrudan ekleyin)..."
+                placeholderText: "Title..."
                 text: root.newNoteTitle
                 onTextChanged: root.newNoteTitle = text
               }
 
               TextField {
                 width: parent.width
-                placeholderText: root.isCreatingChecklist ? "Görevler (her satıra bir tane)..." : "Not içeriği..."
+                placeholderText: root.isCreatingChecklist ? "Checklist items (one per line)..." : "Take a note..."
                 text: root.newNoteContent
                 onTextChanged: root.newNoteContent = text
               }
@@ -687,13 +687,13 @@ Panel {
                 Item { Layout.fillWidth: true }
 
                 Button {
-                  text: root.isCreatingChecklist ? "󰄲 Liste" : "󰠮 Düz Not"
+                  text: root.isCreatingChecklist ? "󰄲 List" : "󰠮 Note"
                   selected: root.isCreatingChecklist
                   onClicked: root.isCreatingChecklist = !root.isCreatingChecklist
                 }
 
                 Button {
-                  text: "Kaydet"
+                  text: "Save"
                   iconText: "󰐕"
                   onClicked: root.addManualNote()
                 }
@@ -714,7 +714,7 @@ Panel {
             }
 
             PanelSectionHeader {
-              text: "SABİTLENENLER"
+              text: "PINNED"
               width: parent.width
             }
 
@@ -749,7 +749,7 @@ Panel {
                         Text {
                           Layout.fillWidth: true
                           textFormat: Text.PlainText
-                          text: modelData.title || "Başlıksız"
+                          text: modelData.title || "Untitled"
                           font.family: Style.font.family
                           font.pixelSize: Style.font.body
                           font.bold: true
@@ -857,7 +857,7 @@ Panel {
             spacing: Style.space(8)
 
             PanelSectionHeader {
-              text: root.filterMode === "pinned" ? "SABİTLENENLER" : "NOTLAR"
+              text: root.filterMode === "pinned" ? "PINNED" : "NOTES"
               width: parent.width
             }
 
@@ -895,7 +895,7 @@ Panel {
                         Text {
                           Layout.fillWidth: true
                           textFormat: Text.PlainText
-                          text: modelData.title || "Başlıksız"
+                          text: modelData.title || "Untitled"
                           font.family: Style.font.family
                           font.pixelSize: Style.font.body
                           font.bold: true

@@ -11,9 +11,9 @@ fi
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="${DIR}/omanotes-engine"
 
-if [[ -x "${BIN}" ]]; then
-    exec "${BIN}" "$@"
-else
-    echo "OmaNotes engine not found. Run ./build.sh first."
-    exit 1
+if [[ ! -x "${BIN}" ]]; then
+    echo "OmaNotes engine not found. Compiling from source..." >&2
+    (cd "${DIR}" && cargo build --release --locked && install -m 755 target/release/omanotes-engine "${BIN}") >&2
 fi
+
+exec "${BIN}" "$@"

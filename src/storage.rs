@@ -32,7 +32,7 @@ pub struct Note {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CloudConfig {
-    pub provider: String, // "none", "rclone", "git"
+    pub provider: String,      // "none", "rclone", "git"
     pub rclone_remote: String, // e.g. "gdrive:OmarchyNotes" or "nextcloud:Notes"
     pub git_remote: String,
     pub auto_sync: bool,
@@ -95,7 +95,8 @@ pub fn get_state_dir() -> PathBuf {
 
 pub fn ensure_dir_0700(dir: &Path) -> Result<(), String> {
     if !dir.exists() {
-        fs::create_dir_all(dir).map_err(|e| format!("Failed to create directory {:?}: {}", dir, e))?;
+        fs::create_dir_all(dir)
+            .map_err(|e| format!("Failed to create directory {:?}: {}", dir, e))?;
     }
     let meta = fs::metadata(dir).map_err(|e| format!("Failed to get directory metadata: {}", e))?;
     // SAFETY: getuid is a standard POSIX libc call
@@ -115,17 +116,24 @@ pub fn atomic_write_0600(file_path: &Path, content: &[u8]) -> Result<(), String>
 
     // If file exists, verify it is not a symlink, owned by user, and a regular file
     if file_path.exists() {
-        let meta = fs::symlink_metadata(file_path).map_err(|e| format!("symlink_metadata failed: {}", e))?;
+        let meta = fs::symlink_metadata(file_path)
+            .map_err(|e| format!("symlink_metadata failed: {}", e))?;
         if meta.file_type().is_symlink() {
             return Err(format!("Security violation: {:?} is a symlink", file_path));
         }
         if !meta.file_type().is_file() {
-            return Err(format!("Security violation: {:?} is not a regular file", file_path));
+            return Err(format!(
+                "Security violation: {:?} is not a regular file",
+                file_path
+            ));
         }
         // SAFETY: getuid is a standard POSIX call
         let current_uid = unsafe { getuid() };
         if meta.uid() != current_uid {
-            return Err(format!("Security violation: UID mismatch on {:?}", file_path));
+            return Err(format!(
+                "Security violation: UID mismatch on {:?}",
+                file_path
+            ));
         }
     }
 
@@ -151,8 +159,12 @@ pub fn atomic_write_0600(file_path: &Path, content: &[u8]) -> Result<(), String>
             .map_err(|e| format!("Failed to sync temp file to disk: {}", e))?;
     }
 
-    fs::rename(&tmp_file_path, file_path)
-        .map_err(|e| format!("Atomic rename failed from {:?} to {:?}: {}", tmp_file_path, file_path, e))?;
+    fs::rename(&tmp_file_path, file_path).map_err(|e| {
+        format!(
+            "Atomic rename failed from {:?} to {:?}: {}",
+            tmp_file_path, file_path, e
+        )
+    })?;
 
     Ok(())
 }
@@ -163,18 +175,25 @@ pub fn safe_read_0600(file_path: &Path) -> Result<Vec<u8>, String> {
         return Err(format!("File does not exist: {:?}", file_path));
     }
 
-    let meta = fs::symlink_metadata(file_path).map_err(|e| format!("symlink_metadata failed: {}", e))?;
+    let meta =
+        fs::symlink_metadata(file_path).map_err(|e| format!("symlink_metadata failed: {}", e))?;
     if meta.file_type().is_symlink() {
         return Err(format!("Security violation: {:?} is a symlink", file_path));
     }
     if !meta.file_type().is_file() {
-        return Err(format!("Security violation: {:?} is not a regular file", file_path));
+        return Err(format!(
+            "Security violation: {:?} is not a regular file",
+            file_path
+        ));
     }
 
     // SAFETY: getuid is a standard POSIX call
     let current_uid = unsafe { getuid() };
     if meta.uid() != current_uid {
-        return Err(format!("Security violation: UID mismatch on {:?}", file_path));
+        return Err(format!(
+            "Security violation: UID mismatch on {:?}",
+            file_path
+        ));
     }
 
     let mode = meta.mode() & 0o777;
@@ -183,9 +202,11 @@ pub fn safe_read_0600(file_path: &Path) -> Result<Vec<u8>, String> {
         let _ = fs::set_permissions(file_path, fs::Permissions::from_mode(0o600));
     }
 
-    let mut f = fs::File::open(file_path).map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
+    let mut f = fs::File::open(file_path)
+        .map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
     let mut buf = Vec::new();
-    f.read_to_end(&mut buf).map_err(|e| format!("Failed to read file: {}", e))?;
+    f.read_to_end(&mut buf)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
     Ok(buf)
 }
 
@@ -195,23 +216,72 @@ fn fastrand() -> u64 {
     u64::from_le_bytes(bytes)
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ConfigState {
+    pub version: u32,
+    pub e2ee_enabled: bool,
+    pub salt: String,
+    pub cloud: CloudConfig,
+}
+
 pub fn load_app_state() -> AppState {
-    let path = get_data_dir().join("notes.json");
-    if !path.exists() {
-        return AppState::default();
+    let mut state = AppState::default();
+
+    // Load config from state dir if exists
+    let config_path = get_state_dir().join("config.json");
+    if config_path.exists() {
+        if let Ok(bytes) = safe_read_0600(&config_path) {
+            if let Ok(cfg) = serde_json::from_slice::<ConfigState>(&bytes) {
+                state.version = cfg.version;
+                state.e2ee_enabled = cfg.e2ee_enabled;
+                state.salt = cfg.salt;
+                state.cloud = cfg.cloud;
+            }
+        }
     }
-    match safe_read_0600(&path) {
-        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-        Err(_) => AppState::default(),
+
+    // Load notes from data dir
+    let notes_path = get_data_dir().join("notes.json");
+    if notes_path.exists() {
+        if let Ok(bytes) = safe_read_0600(&notes_path) {
+            // Check if legacy full AppState
+            if let Ok(full_state) = serde_json::from_slice::<AppState>(&bytes) {
+                state.notes = full_state.notes;
+                if !config_path.exists() {
+                    state.version = full_state.version;
+                    state.e2ee_enabled = full_state.e2ee_enabled;
+                    state.salt = full_state.salt;
+                    state.cloud = full_state.cloud;
+                }
+            } else if let Ok(notes_vec) = serde_json::from_slice::<Vec<Note>>(&bytes) {
+                state.notes = notes_vec;
+            }
+        }
     }
+
+    state
 }
 
 pub fn save_app_state(state: &AppState) -> Result<(), String> {
+    let state_dir = get_state_dir();
+    ensure_dir_0700(&state_dir)?;
+    let config = ConfigState {
+        version: state.version,
+        e2ee_enabled: state.e2ee_enabled,
+        salt: state.salt.clone(),
+        cloud: state.cloud.clone(),
+    };
+    let cfg_bytes =
+        serde_json::to_vec_pretty(&config).map_err(|e| format!("Config serialize error: {}", e))?;
+    atomic_write_0600(&state_dir.join("config.json"), &cfg_bytes)?;
+
     let data_dir = get_data_dir();
     ensure_dir_0700(&data_dir)?;
-    let path = data_dir.join("notes.json");
-    let json_bytes = serde_json::to_vec_pretty(state).map_err(|e| format!("JSON serialize error: {}", e))?;
-    atomic_write_0600(&path, &json_bytes)
+    let notes_bytes = serde_json::to_vec_pretty(&state.notes)
+        .map_err(|e| format!("Notes serialize error: {}", e))?;
+    atomic_write_0600(&data_dir.join("notes.json"), &notes_bytes)?;
+
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -x "$DIR/omanotes-engine" ]]; then
-  exec "$DIR/omanotes-engine" "$@"
-else
-  echo "omanotes-engine not found. Run ./build.sh first." >&2
-  exit 1
+BIN="${DIR}/omanotes-engine"
+
+if [[ ! -x "${BIN}" ]]; then
+  echo "omanotes-engine not found. Compiling from source..." >&2
+  (cd "${DIR}" && cargo build --release --locked && install -m 755 target/release/omanotes-engine "${BIN}") >&2
 fi
+
+exec "${BIN}" "$@"

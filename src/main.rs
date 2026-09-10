@@ -3,9 +3,9 @@ mod storage;
 mod subproc;
 mod sync;
 
-use storage::{AppState, ChecklistItem, Note};
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
+use storage::{AppState, ChecklistItem, Note};
 
 fn now_secs() -> u64 {
     SystemTime::now()
@@ -21,7 +21,11 @@ fn generate_id() -> String {
 }
 
 fn print_json_state(state: &AppState) {
-    let pinned_count = state.notes.iter().filter(|n| n.pinned && !n.archived).count();
+    let pinned_count = state
+        .notes
+        .iter()
+        .filter(|n| n.pinned && !n.archived)
+        .count();
     let active_count = state.notes.iter().filter(|n| !n.archived).count();
     let archived_count = state.notes.iter().filter(|n| n.archived).count();
 
@@ -49,8 +53,8 @@ fn main() {
     if state.notes.is_empty() {
         let welcome_note = Note {
             id: generate_id(),
-            title: "OmaNotes'a Hoş Geldiniz!".to_string(),
-            content: "Omarchy Linux için Google Keep tarzında, tamamen Quickshell arayüzlü ve Zero-Knowledge uçtan uca şifreli (E2EE) not yöneticisi.\n\n• Renk paletiyle notlarınızı gruplayın\n• Sabitlemek için pin ikonuna tıklayın\n• Bulut sekmesinden Google Drive veya Git senkronizasyonunu kurun".to_string(),
+            title: "Welcome to OmaNotes!".to_string(),
+            content: "Machine-age Google Keep clone for Omarchy Linux with zero-latency Quickshell UI and Zero-Knowledge AES-256-GCM encryption.\n\n• Group notes using pastel color palettes\n• Pin priority cards to the top\n• Back up encrypted notes to Google Drive or Git in Settings".to_string(),
             is_checklist: false,
             checklist_items: Vec::new(),
             color: "yellow".to_string(),
@@ -63,23 +67,23 @@ fn main() {
 
         let todo_note = Note {
             id: generate_id(),
-            title: "Örnek Yapılacaklar Listesi".to_string(),
+            title: "Daily Tasks & Checklist".to_string(),
             content: "".to_string(),
             is_checklist: true,
             checklist_items: vec![
                 ChecklistItem {
                     id: generate_id(),
-                    text: "Quickshell arayüzünü incele".to_string(),
+                    text: "Inspect the Quickshell desktop UI".to_string(),
                     checked: true,
                 },
                 ChecklistItem {
                     id: generate_id(),
-                    text: "Yeni bir renkli not oluştur".to_string(),
+                    text: "Create a color-coded sticky note".to_string(),
                     checked: false,
                 },
                 ChecklistItem {
                     id: generate_id(),
-                    text: "E2EE şifreleme parolasını belirle".to_string(),
+                    text: "Set up E2EE master encryption password".to_string(),
                     checked: false,
                 },
             ],
@@ -105,11 +109,17 @@ fn main() {
         "--add-clipboard" => {
             let color = if args.len() > 2 { &args[2] } else { "yellow" };
             let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1500);
-            if let Some(bytes) = subproc::run_cmd_bounded("/usr/bin/wl-paste", &["--no-newline"], &[], deadline, 65536) {
+            if let Some(bytes) = subproc::run_cmd_bounded(
+                "/usr/bin/wl-paste",
+                &["--no-newline"],
+                &[],
+                deadline,
+                65536,
+            ) {
                 if let Ok(text) = String::from_utf8(bytes) {
                     let trimmed = text.trim();
                     if !trimmed.is_empty() {
-                        let first_line = trimmed.lines().next().unwrap_or("Pano Notu");
+                        let first_line = trimmed.lines().next().unwrap_or("Clipboard Note");
                         let title = if first_line.len() > 40 {
                             format!("{}...", &first_line[..40])
                         } else {
@@ -133,13 +143,17 @@ fn main() {
                         let new_note = Note {
                             id: generate_id(),
                             title,
-                            content: if is_checklist { "".to_string() } else { trimmed.to_string() },
+                            content: if is_checklist {
+                                "".to_string()
+                            } else {
+                                trimmed.to_string()
+                            },
                             is_checklist,
                             checklist_items: items,
                             color: color.to_string(),
                             pinned: false,
                             archived: false,
-                            tags: vec!["pano".to_string()],
+                            tags: vec!["clipboard".to_string()],
                             created_at: now_secs(),
                             updated_at: now_secs(),
                         };
@@ -159,68 +173,96 @@ fn main() {
             let new_note = match tmpl.as_str() {
                 "shopping" => Note {
                     id: generate_id(),
-                    title: "Alışveriş Listesi".to_string(),
+                    title: "Grocery Shopping List".to_string(),
                     content: "".to_string(),
                     is_checklist: true,
                     checklist_items: vec![
-                        ChecklistItem { id: generate_id(), text: "Ekmek".to_string(), checked: false },
-                        ChecklistItem { id: generate_id(), text: "Süt".to_string(), checked: false },
-                        ChecklistItem { id: generate_id(), text: "Yumurta".to_string(), checked: false },
-                        ChecklistItem { id: generate_id(), text: "Kahve".to_string(), checked: false },
+                        ChecklistItem {
+                            id: generate_id(),
+                            text: "Fresh Bread".to_string(),
+                            checked: false,
+                        },
+                        ChecklistItem {
+                            id: generate_id(),
+                            text: "Whole Milk".to_string(),
+                            checked: false,
+                        },
+                        ChecklistItem {
+                            id: generate_id(),
+                            text: "Organic Eggs".to_string(),
+                            checked: false,
+                        },
+                        ChecklistItem {
+                            id: generate_id(),
+                            text: "Dark Roast Coffee".to_string(),
+                            checked: false,
+                        },
                     ],
                     color: "green".to_string(),
                     pinned: true,
                     archived: false,
-                    tags: vec!["market".to_string()],
+                    tags: vec!["groceries".to_string()],
                     created_at: now_secs(),
                     updated_at: now_secs(),
                 },
                 "daily" => Note {
                     id: generate_id(),
-                    title: "Günün Görevleri".to_string(),
+                    title: "Daily Priorities".to_string(),
                     content: "".to_string(),
                     is_checklist: true,
                     checklist_items: vec![
-                        ChecklistItem { id: generate_id(), text: "Sabah e-posta ve bildirim kontrolü".to_string(), checked: false },
-                        ChecklistItem { id: generate_id(), text: "Öncelikli proje geliştirmesi".to_string(), checked: false },
-                        ChecklistItem { id: generate_id(), text: "Toplantı ve notları senkronize et".to_string(), checked: false },
+                        ChecklistItem {
+                            id: generate_id(),
+                            text: "Morning inbox & system triage".to_string(),
+                            checked: false,
+                        },
+                        ChecklistItem {
+                            id: generate_id(),
+                            text: "Core feature engineering".to_string(),
+                            checked: false,
+                        },
+                        ChecklistItem {
+                            id: generate_id(),
+                            text: "Sync notes vault & push commits".to_string(),
+                            checked: false,
+                        },
                     ],
                     color: "blue".to_string(),
                     pinned: false,
                     archived: false,
-                    tags: vec!["plan".to_string()],
+                    tags: vec!["priorities".to_string()],
                     created_at: now_secs(),
                     updated_at: now_secs(),
                 },
                 "idea" => Note {
                     id: generate_id(),
-                    title: "Yeni Fikir".to_string(),
-                    content: "Fikrin ana hatları ve detayları buraya...".to_string(),
+                    title: "New Project Idea".to_string(),
+                    content: "Architecture notes, brainstorming, and design draft...".to_string(),
                     is_checklist: false,
                     checklist_items: Vec::new(),
                     color: "yellow".to_string(),
                     pinned: false,
                     archived: false,
-                    tags: vec!["fikir".to_string()],
+                    tags: vec!["idea".to_string()],
                     created_at: now_secs(),
                     updated_at: now_secs(),
                 },
                 "reminder" => Note {
                     id: generate_id(),
-                    title: "Önemli Hatırlatıcı".to_string(),
-                    content: "Unutulmaması gereken kritik madde!".to_string(),
+                    title: "High Priority Reminder".to_string(),
+                    content: "Critical action item requiring prompt follow-up!".to_string(),
                     is_checklist: false,
                     checklist_items: Vec::new(),
                     color: "red".to_string(),
                     pinned: true,
                     archived: false,
-                    tags: vec!["acil".to_string()],
+                    tags: vec!["urgent".to_string()],
                     created_at: now_secs(),
                     updated_at: now_secs(),
                 },
                 _ => Note {
                     id: generate_id(),
-                    title: "Yeni Not".to_string(),
+                    title: "New Note".to_string(),
                     content: "".to_string(),
                     is_checklist: false,
                     checklist_items: Vec::new(),
@@ -245,7 +287,7 @@ fn main() {
             if let Some(note) = state.notes.iter().find(|n| &n.id == id).cloned() {
                 let mut dup = note;
                 dup.id = generate_id();
-                dup.title = format!("{} (Kopya)", dup.title);
+                dup.title = format!("{} (Copy)", dup.title);
                 dup.created_at = now_secs();
                 dup.updated_at = now_secs();
                 state.notes.insert(0, dup);
@@ -267,17 +309,27 @@ fn main() {
             print_json_state(&state);
         }
         "--add" => {
-            // --add <title> <content> <color> <is_checklist> [tags_csv]
-            if args.len() < 5 {
-                eprintln!("Usage: omanotes-engine --add <title> <content> <color> <is_checklist> [tags_csv]");
+            // --add <title> [content] [color] [is_checklist] [tags_csv]
+            if args.len() < 3 {
+                eprintln!("Usage: omanotes-engine --add <title> [content] [color] [is_checklist] [tags_csv]");
                 std::process::exit(1);
             }
-            let title = &args[2];
-            let content = &args[3];
-            let color = &args[4];
-            let is_checklist = args[5].parse::<bool>().unwrap_or(false);
-            let tags: Vec<String> = if args.len() > 6 && !args[6].is_empty() {
-                args[6].split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+            let title = args.get(2).map(|s| s.as_str()).unwrap_or("New Note");
+            let content = args.get(3).map(|s| s.as_str()).unwrap_or("");
+            let color = args.get(4).map(|s| s.as_str()).unwrap_or("yellow");
+            let is_checklist = args
+                .get(5)
+                .and_then(|s| s.parse::<bool>().ok())
+                .unwrap_or(false);
+            let tags: Vec<String> = if let Some(t) = args.get(6) {
+                if !t.is_empty() {
+                    t.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                } else {
+                    Vec::new()
+                }
             } else {
                 Vec::new()
             };
@@ -298,11 +350,11 @@ fn main() {
 
             let new_note = Note {
                 id: generate_id(),
-                title: title.clone(),
-                content: content.clone(),
+                title: title.to_string(),
+                content: content.to_string(),
                 is_checklist,
                 checklist_items: items,
-                color: color.clone(),
+                color: color.to_string(),
                 pinned: false,
                 archived: false,
                 tags,
@@ -399,16 +451,16 @@ fn main() {
             print_json_state(&state);
         }
         "--edit" => {
-            if args.len() < 5 {
-                eprintln!("Usage: omanotes-engine --edit <id> <title> <content>");
+            if args.len() < 4 {
+                eprintln!("Usage: omanotes-engine --edit <id> <title> [content]");
                 std::process::exit(1);
             }
             let id = &args[2];
             let title = &args[3];
-            let content = &args[4];
+            let content = args.get(4).map(|s| s.as_str()).unwrap_or("");
             if let Some(note) = state.notes.iter_mut().find(|n| &n.id == id) {
                 note.title = title.clone();
-                note.content = content.clone();
+                note.content = content.to_string();
                 note.updated_at = now_secs();
                 let _ = storage::save_app_state(&state);
             }
@@ -434,21 +486,34 @@ fn main() {
             print_json_state(&state);
         }
         "--set-cloud" => {
-            // --set-cloud <provider> <rclone_remote> <git_remote> <auto_sync>
-            if args.len() < 6 {
-                eprintln!("Usage: omanotes-engine --set-cloud <provider> <rclone_remote> <git_remote> <auto_sync>");
+            // --set-cloud <provider> [rclone_remote] [git_remote] [auto_sync]
+            if args.len() < 3 {
+                eprintln!("Usage: omanotes-engine --set-cloud <provider> [rclone_remote] [git_remote] [auto_sync]");
                 std::process::exit(1);
             }
-            state.cloud.provider = args[2].clone();
-            state.cloud.rclone_remote = args[3].clone();
-            state.cloud.git_remote = args[4].clone();
-            state.cloud.auto_sync = args[5].parse::<bool>().unwrap_or(false);
+            state.cloud.provider = args.get(2).cloned().unwrap_or_else(|| "none".to_string());
+            state.cloud.rclone_remote = args.get(3).cloned().unwrap_or_default();
+            state.cloud.git_remote = args.get(4).cloned().unwrap_or_default();
+            state.cloud.auto_sync = args
+                .get(5)
+                .and_then(|s| s.parse::<bool>().ok())
+                .unwrap_or(false);
             let _ = storage::save_app_state(&state);
             print_json_state(&state);
         }
         "--sync" => {
             let password = if args.len() > 2 { args[2].as_str() } else { "" };
             let res = sync::sync_cloud(&mut state, password);
+            let output = serde_json::json!({
+                "success": res.success,
+                "message": res.message,
+                "cloud": state.cloud,
+            });
+            println!("{}", output);
+        }
+        "--pull" => {
+            let password = if args.len() > 2 { args[2].as_str() } else { "" };
+            let res = sync::pull_cloud(&mut state, password);
             let output = serde_json::json!({
                 "success": res.success,
                 "message": res.message,
