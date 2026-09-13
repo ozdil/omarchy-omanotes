@@ -7,6 +7,96 @@ use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 use storage::{AppState, ChecklistItem, Note};
 
+use std::io::{BufRead, Read};
+
+const MAX_PAYLOAD_BYTES: u64 = 262_144; // 256 KiB strict cap to prevent memory exhaustion / DoS
+
+#[derive(serde::Deserialize)]
+struct AddPayload {
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    content: String,
+    #[serde(default = "default_color")]
+    color: String,
+    #[serde(default)]
+    is_checklist: bool,
+    #[serde(default)]
+    checklist_items: Option<Vec<String>>,
+    #[serde(default)]
+    tags: Vec<String>,
+}
+
+fn default_color() -> String {
+    "yellow".to_string()
+}
+
+#[derive(serde::Deserialize)]
+struct EditPayload {
+    id: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    content: String,
+}
+
+#[derive(serde::Deserialize)]
+struct AddCheckItemPayload {
+    note_id: String,
+    text: String,
+}
+
+#[derive(serde::Deserialize)]
+struct CloudPayload {
+    #[serde(default)]
+    provider: String,
+    #[serde(default)]
+    rclone_remote: String,
+    #[serde(default)]
+    git_remote: String,
+    #[serde(default)]
+    auto_sync: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct PasswordPayload {
+    #[serde(default)]
+    password: String,
+}
+
+fn read_framed_stdin<T: serde::de::DeserializeOwned>() -> Result<T, String> {
+    let stdin = std::io::stdin();
+    let mut handle = stdin.lock().take(MAX_PAYLOAD_BYTES);
+    let mut line = String::new();
+    handle
+        .read_line(&mut line)
+        .map_err(|_| "Failed to read payload from stdin".to_string())?;
+
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return Err("Payload on stdin is empty".to_string());
+    }
+    serde_json::from_str::<T>(trimmed).map_err(|e| format!("Invalid JSON framing: {}", e))
+}
+
+fn read_password_stdin() -> Result<String, String> {
+    let stdin = std::io::stdin();
+    let mut handle = stdin.lock().take(MAX_PAYLOAD_BYTES);
+    let mut line = String::new();
+    handle
+        .read_line(&mut line)
+        .map_err(|_| "Failed to read password from stdin".to_string())?;
+
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return Ok(String::new());
+    }
+    if let Ok(val) = serde_json::from_str::<PasswordPayload>(trimmed) {
+        return Ok(val.password);
+    }
+    Ok(trimmed.to_string())
+}
+
 fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -309,55 +399,61 @@ fn main() {
             print_json_state(&state);
         }
         "--add" => {
-            // --add <title> [content] [color] [is_checklist] [tags_csv]
-            if args.len() < 3 {
-                eprintln!("Usage: omanotes-engine --add <title> [content] [color] [is_checklist] [tags_csv]");
+            if args.len() > 2 {
+                eprintln!("Security Error: Note content is prohibited in process arguments to prevent /proc/<pid>/cmdline leaks. Pass framed JSON payload via stdin.");
                 std::process::exit(1);
             }
-            let title = args.get(2).map(|s| s.as_str()).unwrap_or("New Note");
-            let content = args.get(3).map(|s| s.as_str()).unwrap_or("");
-            let color = args.get(4).map(|s| s.as_str()).unwrap_or("yellow");
-            let is_checklist = args
-                .get(5)
-                .and_then(|s| s.parse::<bool>().ok())
-                .unwrap_or(false);
-            let tags: Vec<String> = if let Some(t) = args.get(6) {
-                if !t.is_empty() {
-                    t.split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect()
-                } else {
-                    Vec::new()
+            let payload: AddPayload = match read_framed_stdin() {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("Payload error: {}", e);
+                    std::process::exit(1);
                 }
+            };
+
+            let title = if payload.title.trim().is_empty() {
+                "New Note".to_string()
             } else {
-                Vec::new()
+                payload.title.trim().to_string()
             };
 
             let mut items = Vec::new();
-            if is_checklist {
-                for line in content.lines() {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() {
-                        items.push(ChecklistItem {
-                            id: generate_id(),
-                            text: trimmed.to_string(),
-                            checked: false,
-                        });
+            if payload.is_checklist {
+                if let Some(explicit_items) = payload.checklist_items {
+                    for it in explicit_items {
+                        let trimmed = it.trim();
+                        if !trimmed.is_empty() {
+                            items.push(ChecklistItem {
+                                id: generate_id(),
+                                text: trimmed.to_string(),
+                                checked: false,
+                            });
+                        }
+                    }
+                } else {
+                    for line in payload.content.lines() {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            items.push(ChecklistItem {
+                                id: generate_id(),
+                                text: trimmed.to_string(),
+                                checked: false,
+                            });
+                        }
                     }
                 }
             }
 
             let new_note = Note {
                 id: generate_id(),
-                title: title.to_string(),
-                content: content.to_string(),
-                is_checklist,
+                title,
+                content: payload.content,
+                is_checklist: payload.is_checklist,
                 checklist_items: items,
-                color: color.to_string(),
+                color: payload.color,
                 pinned: false,
                 archived: false,
-                tags,
+                tags: payload.tags,
                 created_at: now_secs(),
                 updated_at: now_secs(),
             };
@@ -433,16 +529,21 @@ fn main() {
             print_json_state(&state);
         }
         "--add-check-item" => {
-            if args.len() < 4 {
-                eprintln!("Usage: omanotes-engine --add-check-item <note_id> <item_text>");
+            if args.len() > 2 {
+                eprintln!("Security Error: Checklist item text is prohibited in process arguments to prevent /proc/<pid>/cmdline leaks. Pass framed JSON payload via stdin.");
                 std::process::exit(1);
             }
-            let note_id = &args[2];
-            let item_text = &args[3];
-            if let Some(note) = state.notes.iter_mut().find(|n| &n.id == note_id) {
+            let payload: AddCheckItemPayload = match read_framed_stdin() {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("Payload error: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Some(note) = state.notes.iter_mut().find(|n| n.id == payload.note_id) {
                 note.checklist_items.push(ChecklistItem {
                     id: generate_id(),
-                    text: item_text.clone(),
+                    text: payload.text,
                     checked: false,
                 });
                 note.updated_at = now_secs();
@@ -451,27 +552,39 @@ fn main() {
             print_json_state(&state);
         }
         "--edit" => {
-            if args.len() < 4 {
-                eprintln!("Usage: omanotes-engine --edit <id> <title> [content]");
+            if args.len() > 2 {
+                eprintln!("Security Error: Note content is prohibited in process arguments to prevent /proc/<pid>/cmdline leaks. Pass framed JSON payload via stdin.");
                 std::process::exit(1);
             }
-            let id = &args[2];
-            let title = &args[3];
-            let content = args.get(4).map(|s| s.as_str()).unwrap_or("");
-            if let Some(note) = state.notes.iter_mut().find(|n| &n.id == id) {
-                note.title = title.clone();
-                note.content = content.to_string();
+            let payload: EditPayload = match read_framed_stdin() {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("Payload error: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Some(note) = state.notes.iter_mut().find(|n| n.id == payload.id) {
+                if !payload.title.is_empty() {
+                    note.title = payload.title;
+                }
+                note.content = payload.content;
                 note.updated_at = now_secs();
                 let _ = storage::save_app_state(&state);
             }
             print_json_state(&state);
         }
         "--set-e2ee" => {
-            if args.len() < 3 {
-                eprintln!("Usage: omanotes-engine --set-e2ee <password>");
+            if args.len() > 2 {
+                eprintln!("Security Error: E2EE password is prohibited in process arguments to prevent /proc/<pid>/cmdline leaks. Pass framed payload via stdin.");
                 std::process::exit(1);
             }
-            let password = &args[2];
+            let password = match read_password_stdin() {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("Password read error: {}", e);
+                    std::process::exit(1);
+                }
+            };
             if password.is_empty() {
                 state.e2ee_enabled = false;
             } else {
@@ -486,24 +599,31 @@ fn main() {
             print_json_state(&state);
         }
         "--set-cloud" => {
-            // --set-cloud <provider> [rclone_remote] [git_remote] [auto_sync]
-            if args.len() < 3 {
-                eprintln!("Usage: omanotes-engine --set-cloud <provider> [rclone_remote] [git_remote] [auto_sync]");
+            if args.len() > 2 {
+                eprintln!("Security Error: Cloud configuration is prohibited in process arguments to prevent /proc/<pid>/cmdline leaks. Pass framed JSON payload via stdin.");
                 std::process::exit(1);
             }
-            state.cloud.provider = args.get(2).cloned().unwrap_or_else(|| "none".to_string());
-            state.cloud.rclone_remote = args.get(3).cloned().unwrap_or_default();
-            state.cloud.git_remote = args.get(4).cloned().unwrap_or_default();
-            state.cloud.auto_sync = args
-                .get(5)
-                .and_then(|s| s.parse::<bool>().ok())
-                .unwrap_or(false);
+            let payload: CloudPayload = match read_framed_stdin() {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("Payload error: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            state.cloud.provider = payload.provider;
+            state.cloud.rclone_remote = payload.rclone_remote;
+            state.cloud.git_remote = payload.git_remote;
+            state.cloud.auto_sync = payload.auto_sync;
             let _ = storage::save_app_state(&state);
             print_json_state(&state);
         }
         "--sync" => {
-            let password = if args.len() > 2 { args[2].as_str() } else { "" };
-            let res = sync::sync_cloud(&mut state, password);
+            if args.len() > 2 {
+                eprintln!("Security Error: E2EE password is prohibited in process arguments to prevent /proc/<pid>/cmdline leaks. Pass password via stdin.");
+                std::process::exit(1);
+            }
+            let password = read_password_stdin().unwrap_or_default();
+            let res = sync::sync_cloud(&mut state, &password);
             let output = serde_json::json!({
                 "success": res.success,
                 "message": res.message,
@@ -512,8 +632,12 @@ fn main() {
             println!("{}", output);
         }
         "--pull" => {
-            let password = if args.len() > 2 { args[2].as_str() } else { "" };
-            let res = sync::pull_cloud(&mut state, password);
+            if args.len() > 2 {
+                eprintln!("Security Error: E2EE password is prohibited in process arguments to prevent /proc/<pid>/cmdline leaks. Pass password via stdin.");
+                std::process::exit(1);
+            }
+            let password = read_password_stdin().unwrap_or_default();
+            let res = sync::pull_cloud(&mut state, &password);
             let output = serde_json::json!({
                 "success": res.success,
                 "message": res.message,

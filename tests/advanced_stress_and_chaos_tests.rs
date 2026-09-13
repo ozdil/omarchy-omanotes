@@ -1,12 +1,34 @@
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
 fn engine_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_omanotes-engine"))
+}
+
+fn run_engine(
+    bin: &PathBuf,
+    args: &[&str],
+    stdin_payload: &[u8],
+    envs: &[(&str, &PathBuf)],
+) -> std::process::Output {
+    let mut cmd = Command::new(bin);
+    cmd.args(args);
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let mut child = cmd.spawn().expect("spawn engine");
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(stdin_payload);
+    }
+    child.wait_with_output().expect("wait for output")
 }
 
 /// 1. Cryptographic Tampering & AEAD Bit-Flipping Test
@@ -18,18 +40,18 @@ fn test_security_ciphertext_tampering_rejected() {
 
     let bin = engine_bin();
 
-    // Add a note
-    let out = Command::new(&bin)
-        .args([
-            "--add",
-            "Secret Data",
-            "Original untampered payload",
-            "yellow",
-        ])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("add note");
+    // Add a note via bounded framed stdin
+    let add_payload = serde_json::json!({
+        "title": "Secret Data",
+        "content": "Original untampered payload",
+        "color": "yellow"
+    });
+    let out = run_engine(
+        &bin,
+        &["--add"],
+        format!("{}\n", add_payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     assert!(out.status.success());
 
     // Setup git vault
@@ -57,26 +79,27 @@ fn test_security_ciphertext_tampering_rejected() {
         ])
         .output();
 
-    let _ = Command::new(&bin)
-        .args([
-            "--set-cloud",
-            "git",
-            "",
-            git_repo.to_str().unwrap(),
-            "false",
-        ])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output();
+    let cloud_payload = serde_json::json!({
+        "provider": "git",
+        "rclone_remote": "",
+        "git_remote": git_repo.to_str().unwrap(),
+        "auto_sync": false
+    });
+    let _ = run_engine(
+        &bin,
+        &["--set-cloud"],
+        format!("{}\n", cloud_payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
 
-    // Sync with password
+    // Sync with password via stdin
     let password = "TamperProofPassword2026!";
-    let sync_out = Command::new(&bin)
-        .args(["--sync", password])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("sync");
+    let sync_out = run_engine(
+        &bin,
+        &["--sync"],
+        format!("{}\n", password).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     assert!(sync_out.status.success());
 
     let enc_path = git_repo.join("notes.enc");
@@ -97,12 +120,12 @@ fn test_security_ciphertext_tampering_rejected() {
 
     // Delete local notes and attempt pull: MUST fail authentication
     let _ = fs::remove_file(test_dir.join("notes.json"));
-    let pull_out = Command::new(&bin)
-        .args(["--pull", password])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("pull");
+    let pull_out = run_engine(
+        &bin,
+        &["--pull"],
+        format!("{}\n", password).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     let pull_res: serde_json::Value =
         serde_json::from_slice(&pull_out.stdout).expect("parse pull json");
     assert_eq!(
@@ -128,12 +151,12 @@ fn test_security_ciphertext_tampering_rejected() {
 
     fs::write(&enc_path, serde_json::to_string_pretty(&enc_json).unwrap())
         .expect("write tampered nonce");
-    let pull_nonce_out = Command::new(&bin)
-        .args(["--pull", password])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("pull nonce");
+    let pull_nonce_out = run_engine(
+        &bin,
+        &["--pull"],
+        format!("{}\n", password).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     let pull_nonce_res: serde_json::Value =
         serde_json::from_slice(&pull_nonce_out.stdout).expect("parse pull json");
     assert_eq!(
@@ -170,19 +193,19 @@ fn test_security_malicious_payload_and_shell_injection() {
     let evil_color = "red; touch /tmp/pwned_color";
     let evil_tags = "tag1,tag2; touch /tmp/pwned_tags";
 
-    let out = Command::new(&bin)
-        .args([
-            "--add",
-            evil_title,
-            evil_content,
-            evil_color,
-            "false",
-            evil_tags,
-        ])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("add malicious note");
+    let evil_payload = serde_json::json!({
+        "title": evil_title,
+        "content": evil_content,
+        "color": evil_color,
+        "is_checklist": false,
+        "tags": [evil_tags]
+    });
+    let out = run_engine(
+        &bin,
+        &["--add"],
+        format!("{}\n", evil_payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     assert!(out.status.success());
 
     // Verify NONE of the canaries were triggered!
@@ -238,17 +261,17 @@ fn test_storage_corrupted_json_recovery() {
     );
 
     // Adding a note should safely write fresh, valid JSON
-    let add_out = Command::new(&bin)
-        .args([
-            "--add",
-            "Recovered Note",
-            "State preserved after corruption",
-            "green",
-        ])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("add note after corruption");
+    let payload = serde_json::json!({
+        "title": "Recovered Note",
+        "content": "State preserved after corruption",
+        "color": "green"
+    });
+    let add_out = run_engine(
+        &bin,
+        &["--add"],
+        format!("{}\n", payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     assert!(add_out.status.success());
 
     // Verify the saved file is now valid JSON
@@ -339,14 +362,19 @@ fn test_stress_high_volume_notes() {
     assert_eq!(parsed_status["total_notes"], 1000);
     assert_eq!(parsed_status["pinned_notes"], 10);
 
-    // 3. Add note #1001 with large payload (64 KB string)
+    // 3. Add note #1001 with large payload (64 KB string) via bounded framed stdin
     let large_body = "A".repeat(65536);
-    let add_large = Command::new(&bin)
-        .args(["--add", "Massive Payload Note", &large_body, "blue"])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("add large note");
+    let payload = serde_json::json!({
+        "title": "Massive Payload Note",
+        "content": large_body,
+        "color": "blue"
+    });
+    let add_large = run_engine(
+        &bin,
+        &["--add"],
+        format!("{}\n", payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     assert!(add_large.status.success());
 
     let status_after = Command::new(&bin)
@@ -376,17 +404,17 @@ fn test_concurrency_atomic_writes() {
         let b = bin.clone();
         let td = test_dir.clone();
         handles.push(thread::spawn(move || {
-            let out = Command::new(&b)
-                .args([
-                    "--add",
-                    &format!("Thread Note #{}", i),
-                    "Concurrent write content",
-                    "purple",
-                ])
-                .env("OMANOTES_DATA_DIR", &td)
-                .env("OMANOTES_STATE_DIR", &td)
-                .output()
-                .expect("concurrent add");
+            let payload = serde_json::json!({
+                "title": format!("Thread Note #{}", i),
+                "content": "Concurrent write content",
+                "color": "purple"
+            });
+            let out = run_engine(
+                &b,
+                &["--add"],
+                format!("{}\n", payload).as_bytes(),
+                &[("OMANOTES_DATA_DIR", &td), ("OMANOTES_STATE_DIR", &td)],
+            );
             assert!(out.status.success());
         }));
     }
@@ -431,38 +459,40 @@ fn test_chaos_broken_cloud_timeout() {
     let bin = engine_bin();
 
     // 1. Add a sample note
-    let _ = Command::new(&bin)
-        .args([
-            "--add",
-            "Chaos Note",
-            "Cloud error resilience test",
-            "yellow",
-        ])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output();
+    let payload = serde_json::json!({
+        "title": "Chaos Note",
+        "content": "Cloud error resilience test",
+        "color": "yellow"
+    });
+    let _ = run_engine(
+        &bin,
+        &["--add"],
+        format!("{}\n", payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
 
     // 2. Point git remote to an invalid/non-existent destination
-    let _ = Command::new(&bin)
-        .args([
-            "--set-cloud",
-            "git",
-            "",
-            "/non_existent_folder_path/vault_repo",
-            "false",
-        ])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output();
+    let cloud_payload = serde_json::json!({
+        "provider": "git",
+        "rclone_remote": "",
+        "git_remote": "/non_existent_folder_path/vault_repo",
+        "auto_sync": false
+    });
+    let _ = run_engine(
+        &bin,
+        &["--set-cloud"],
+        format!("{}\n", cloud_payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
 
     // 3. Attempt sync: must NOT hang and must fail gracefully with success=false
     let t0 = Instant::now();
-    let sync_out = Command::new(&bin)
-        .args(["--sync", "any_password"])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("sync on broken repo");
+    let sync_out = run_engine(
+        &bin,
+        &["--sync"],
+        b"any_password\n",
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     let elapsed = t0.elapsed();
 
     assert!(
@@ -487,30 +517,67 @@ fn test_chaos_broken_cloud_timeout() {
     );
 
     // 4. Point rclone to an invalid remote configuration
-    let _ = Command::new(&bin)
-        .args([
-            "--set-cloud",
-            "rclone",
-            "invalid_remote_404:Vault",
-            "",
-            "false",
-        ])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output();
+    let rclone_payload = serde_json::json!({
+        "provider": "rclone",
+        "rclone_remote": "invalid_remote_404:Vault",
+        "git_remote": "",
+        "auto_sync": false
+    });
+    let _ = run_engine(
+        &bin,
+        &["--set-cloud"],
+        format!("{}\n", rclone_payload).as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
 
-    let rclone_out = Command::new(&bin)
-        .args(["--sync", "any_password"])
-        .env("OMANOTES_DATA_DIR", &test_dir)
-        .env("OMANOTES_STATE_DIR", &test_dir)
-        .output()
-        .expect("sync on broken rclone");
+    let rclone_out = run_engine(
+        &bin,
+        &["--sync"],
+        b"any_password\n",
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
     let rclone_json: serde_json::Value =
         serde_json::from_slice(&rclone_out.stdout).expect("parse rclone response");
     assert_eq!(
         rclone_json["success"], false,
         "Broken rclone must report success=false without panic"
     );
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+/// 7. Security: Overrun Buffer Limit (> 256 KiB) & Malformed JSON Protection
+#[test]
+fn test_security_payload_overrun_and_malformed_json() {
+    let test_dir = PathBuf::from("/tmp/test_omanotes_overrun_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    fs::create_dir_all(&test_dir).expect("create test dir");
+
+    let bin = engine_bin();
+
+    // A. Malformed JSON must fail cleanly with exit code 1 and no panics
+    let bad_out = run_engine(
+        &bin,
+        &["--add"],
+        b"{\"broken_json\": [unclosed\n",
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
+    assert!(!bad_out.status.success());
+    let stderr = String::from_utf8_lossy(&bad_out.stderr);
+    assert!(!stderr.contains("panicked"));
+
+    // B. Overrun payload (> 256 KiB): send 300 KiB to ensure handle.take() caps safely
+    let mut huge_payload = "X".repeat(300_000);
+    huge_payload.push('\n');
+    let overrun_out = run_engine(
+        &bin,
+        &["--add"],
+        huge_payload.as_bytes(),
+        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+    );
+    assert!(!overrun_out.status.success());
+    let err_str = String::from_utf8_lossy(&overrun_out.stderr);
+    assert!(!err_str.contains("panicked"));
 
     let _ = fs::remove_dir_all(&test_dir);
 }

@@ -42,6 +42,10 @@ Panel {
   property string cloudGitInput: ""
   property bool isSyncing: false
 
+  // Stdin framing payload buffers (cleared immediately after handoff)
+  property string pendingActionPayload: ""
+  property string pendingSyncPayload: ""
+
   function resolveEnginePath() {
     return Qt.resolvedUrl("omanotes-engine").toString().replace(/^file:\/\//, "")
   }
@@ -122,15 +126,15 @@ Panel {
     var content = newNoteContent.trim()
     if (!title && !content) return
 
-    actionProc.command = [
-      root.resolveEnginePath(),
-      "--add",
-      title || "Quick Note",
-      content,
-      root.newNoteColor,
-      root.isCreatingChecklist ? "true" : "false",
-      ""
-    ]
+    var payload = {
+      title: title || "Quick Note",
+      content: content,
+      color: root.newNoteColor,
+      is_checklist: root.isCreatingChecklist,
+      tags: []
+    }
+    root.pendingActionPayload = JSON.stringify(payload)
+    actionProc.command = [root.resolveEnginePath(), "--add"]
     actionProc.running = true
 
     newNoteTitle = ""
@@ -139,20 +143,23 @@ Panel {
   }
 
   function saveE2EEPassword() {
-    actionProc.command = [root.resolveEnginePath(), "--set-e2ee", root.e2eeInputPassword]
+    var pwd = root.e2eeInputPassword
+    root.pendingActionPayload = JSON.stringify({ password: pwd })
+    actionProc.command = [root.resolveEnginePath(), "--set-e2ee"]
     actionProc.running = true
-    root.showToast(root.e2eeInputPassword ? "E2EE Master Password Updated" : "E2EE Encryption Disabled")
+    root.e2eeInputPassword = ""
+    root.showToast(pwd ? "E2EE Master Password Updated" : "E2EE Encryption Disabled")
   }
 
   function saveCloudSettings() {
-    actionProc.command = [
-      root.resolveEnginePath(),
-      "--set-cloud",
-      root.cloudProviderInput,
-      root.cloudRemoteInput,
-      root.cloudGitInput,
-      "false"
-    ]
+    var payload = {
+      provider: root.cloudProviderInput,
+      rclone_remote: root.cloudRemoteInput,
+      git_remote: root.cloudGitInput,
+      auto_sync: false
+    }
+    root.pendingActionPayload = JSON.stringify(payload)
+    actionProc.command = [root.resolveEnginePath(), "--set-cloud"]
     actionProc.running = true
     root.showToast("Cloud configuration saved")
   }
@@ -160,8 +167,11 @@ Panel {
   function triggerCloudSync() {
     if (root.isSyncing) return
     root.isSyncing = true
-    syncProc.command = [root.resolveEnginePath(), "--sync", root.e2eeInputPassword]
+    var pwd = root.e2eeInputPassword
+    root.pendingSyncPayload = JSON.stringify({ password: pwd })
+    syncProc.command = [root.resolveEnginePath(), "--sync"]
     syncProc.running = true
+    root.e2eeInputPassword = ""
     root.showToast("Syncing with cloud...")
   }
 
@@ -250,6 +260,13 @@ Panel {
 
   Process {
     id: actionProc
+    stdinEnabled: true
+    onStarted: {
+      if (root.pendingActionPayload) {
+        actionProc.write(root.pendingActionPayload + "\n")
+        root.pendingActionPayload = ""
+      }
+    }
     onExited: {
       root.refresh()
     }
@@ -257,6 +274,13 @@ Panel {
 
   Process {
     id: syncProc
+    stdinEnabled: true
+    onStarted: {
+      if (root.pendingSyncPayload) {
+        syncProc.write(root.pendingSyncPayload + "\n")
+        root.pendingSyncPayload = ""
+      }
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {

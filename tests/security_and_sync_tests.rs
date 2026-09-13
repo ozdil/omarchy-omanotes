@@ -84,50 +84,55 @@ fn test_git_e2ee_cloud_sync_and_pull_roundtrip() {
         ])
         .output();
 
-    // 1. Add a note with secret content
-    let add_out = Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--",
-            "--add",
-            "Top Secret Plan",
-            "Launch rocket at midnight with code 998877.",
-            "yellow",
-            "false",
-        ])
-        .env("OMANOTES_DATA_DIR", &data_dir)
-        .env("OMANOTES_STATE_DIR", &state_dir)
-        .output()
-        .expect("add note");
+    // Helper to run cargo with stdin piping
+    let run_cargo_stdin = |args: &[&str], stdin_data: &[u8]| -> std::process::Output {
+        use std::io::Write;
+        let mut cmd = Command::new("cargo");
+        cmd.args(args);
+        cmd.env("OMANOTES_DATA_DIR", &data_dir);
+        cmd.env("OMANOTES_STATE_DIR", &state_dir);
+        cmd.stdin(std::process::Stdio::piped());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        let mut child = cmd.spawn().expect("spawn cargo");
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(stdin_data);
+        }
+        child.wait_with_output().expect("wait for output")
+    };
+
+    // 1. Add a note with secret content via bounded framed stdin
+    let add_payload = serde_json::json!({
+        "title": "Top Secret Plan",
+        "content": "Launch rocket at midnight with code 998877.",
+        "color": "yellow",
+        "is_checklist": false
+    });
+    let add_out = run_cargo_stdin(
+        &["run", "--quiet", "--", "--add"],
+        format!("{}\n", add_payload).as_bytes(),
+    );
     assert!(add_out.status.success());
 
-    // 2. Configure git cloud backup
-    let conf_out = Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--",
-            "--set-cloud",
-            "git",
-            "",
-            git_repo.to_str().unwrap(),
-            "true",
-        ])
-        .env("OMANOTES_DATA_DIR", &data_dir)
-        .env("OMANOTES_STATE_DIR", &state_dir)
-        .output()
-        .expect("set cloud");
+    // 2. Configure git cloud backup via bounded framed stdin
+    let cloud_payload = serde_json::json!({
+        "provider": "git",
+        "rclone_remote": "",
+        "git_remote": git_repo.to_str().unwrap(),
+        "auto_sync": true
+    });
+    let conf_out = run_cargo_stdin(
+        &["run", "--quiet", "--", "--set-cloud"],
+        format!("{}\n", cloud_payload).as_bytes(),
+    );
     assert!(conf_out.status.success());
 
-    // 3. Sync with password
+    // 3. Sync with password via stdin
     let password = "UltraSecurePassword#2026";
-    let sync_out = Command::new("cargo")
-        .args(["run", "--quiet", "--", "--sync", password])
-        .env("OMANOTES_DATA_DIR", &data_dir)
-        .env("OMANOTES_STATE_DIR", &state_dir)
-        .output()
-        .expect("sync note");
+    let sync_out = run_cargo_stdin(
+        &["run", "--quiet", "--", "--sync"],
+        format!("{}\n", password).as_bytes(),
+    );
     assert!(sync_out.status.success());
 
     let sync_json: serde_json::Value =
@@ -176,13 +181,11 @@ fn test_git_e2ee_cloud_sync_and_pull_roundtrip() {
     let local_notes = data_dir.join("notes.json");
     let _ = fs::remove_file(&local_notes);
 
-    // 7. Pull and Decrypt
-    let pull_out = Command::new("cargo")
-        .args(["run", "--quiet", "--", "--pull", password])
-        .env("OMANOTES_DATA_DIR", &data_dir)
-        .env("OMANOTES_STATE_DIR", &state_dir)
-        .output()
-        .expect("pull notes");
+    // 7. Pull and Decrypt via stdin
+    let pull_out = run_cargo_stdin(
+        &["run", "--quiet", "--", "--pull"],
+        format!("{}\n", password).as_bytes(),
+    );
     assert!(pull_out.status.success());
 
     let pull_json: serde_json::Value =
@@ -212,17 +215,58 @@ fn test_git_e2ee_cloud_sync_and_pull_roundtrip() {
     );
 
     // 8. Pull with WRONG password must fail
-    let bad_pull = Command::new("cargo")
-        .args(["run", "--quiet", "--", "--pull", "wrong_password"])
-        .env("OMANOTES_DATA_DIR", &data_dir)
-        .env("OMANOTES_STATE_DIR", &state_dir)
-        .output()
-        .expect("bad pull");
+    let bad_pull = run_cargo_stdin(
+        &["run", "--quiet", "--", "--pull"],
+        b"wrong_password\n",
+    );
     let bad_json: serde_json::Value =
         serde_json::from_slice(&bad_pull.stdout).expect("parse bad pull");
     assert_eq!(bad_json["success"], false, "Wrong password pull must fail");
 
     let _ = fs::remove_dir_all(&base_dir);
+}
+
+#[test]
+fn test_security_sensitive_payloads_in_argv_strictly_rejected() {
+    let test_dir = PathBuf::from("/tmp/test_omanotes_argv_rejection");
+    let _ = fs::remove_dir_all(&test_dir);
+    fs::create_dir_all(&test_dir).expect("create test dir");
+
+    let prohibited_cases = [
+        vec!["--set-e2ee", "mySecretMasterPassword!"],
+        vec!["--sync", "mySecretPassword!"],
+        vec!["--pull", "mySecretPassword!"],
+        vec!["--add", "Secret Note Title", "Secret Note Body"],
+        vec!["--edit", "123", "Secret Title", "Secret Body"],
+        vec!["--add-check-item", "123", "Secret item"],
+        vec!["--set-cloud", "git", "", "/path/to/repo", "true"],
+    ];
+
+    for args in prohibited_cases {
+        let mut full_args = vec!["run", "--quiet", "--"];
+        full_args.extend(&args);
+
+        let out = Command::new("cargo")
+            .args(&full_args)
+            .env("OMANOTES_DATA_DIR", &test_dir)
+            .env("OMANOTES_STATE_DIR", &test_dir)
+            .output()
+            .expect("cargo run");
+
+        assert!(
+            !out.status.success(),
+            "Sensitive payload in argv must be strictly rejected: {:?}",
+            args
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("Security Error") || stderr.contains("prohibited in process arguments"),
+            "Stderr must explicitly declare security violation: {}",
+            stderr
+        );
+    }
+
+    let _ = fs::remove_dir_all(&test_dir);
 }
 
 #[test]
@@ -233,12 +277,16 @@ fn test_cli_argument_resilience_no_panics() {
 
     // Test with various truncated arguments to ensure zero index panics
     let test_cases = [
-        vec!["--add", "Short Note"],
-        vec!["--add", "Short Note", "Some content"],
-        vec!["--add", "Short Note", "Some content", "purple"],
-        vec!["--edit", "non_existent_id", "New Title"],
-        vec!["--set-cloud", "git"],
-        vec!["--set-cloud", "rclone", "remote:vault"],
+        vec!["--add"],
+        vec!["--edit"],
+        vec!["--add-check-item"],
+        vec!["--set-cloud"],
+        vec!["--set-e2ee"],
+        vec!["--sync"],
+        vec!["--pull"],
+        vec!["--delete"],
+        vec!["--toggle-pin"],
+        vec!["--unknown-action"],
     ];
 
     for args in test_cases {
