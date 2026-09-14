@@ -1,5 +1,7 @@
 # OmaNotes - Zero-Knowledge E2EE & Cloud-Sync Google Keep Clone for Omarchy Linux
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-Support_Development-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ozdil)
+
 A fast, private, and mouse/touch-friendly note-taking and checklist application built natively with Quickshell for Omarchy Linux, backed by a hardened Rust engine with AES-256-GCM Zero-Knowledge End-to-End Encryption and multi-cloud synchronization (Google Drive & Git).
 
 Author: Ozan Özdil (ozdil)  
@@ -123,6 +125,14 @@ OmaNotes strictly adheres to the Omarchy Linux Security Architecture Standards:
    - Zero dynamic code evaluation (`eval()`, `createQmlObject()`).
 5. **Git Argument Injection Prevention:**
    - Git commands utilize discrete argument slices with `--` delimiters and `-C <path>` canonical paths. `GIT_TERMINAL_PROMPT=0` prevents hanging prompts.
+
+---
+
+## Support & Sponsorship
+
+If you find OmaNotes useful and want to support independent Linux development:
+
+<a href="https://buymeacoffee.com/ozdil" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 50px !important;width: 180px !important;" ></a>
 
 ---
 
