@@ -36,7 +36,7 @@ pub fn export_encrypted_envelope(state: &AppState, password: &str) -> Result<Pat
         arr
     };
 
-    let key = crypto::derive_key(password, &salt_bytes);
+    let key = crypto::derive_key(password, &salt_bytes)?;
     let plaintext_bytes =
         serde_json::to_vec(&state.notes).map_err(|e| format!("Serialization error: {}", e))?;
 
@@ -60,13 +60,7 @@ pub fn import_encrypted_envelope(
     let envelope: EncryptedEnvelope =
         serde_json::from_slice(&bytes).map_err(|e| format!("Invalid envelope JSON: {}", e))?;
 
-    let salt_bytes = hex::decode(&envelope.salt).map_err(|e| format!("Invalid salt hex: {}", e))?;
-    if salt_bytes.len() != 16 {
-        return Err("Invalid salt length in envelope".to_string());
-    }
-
-    let key = crypto::derive_key(password, &salt_bytes);
-    let decrypted_bytes = crypto::decrypt_payload(&envelope, &key)?;
+    let decrypted_bytes = crypto::decrypt_envelope(&envelope, password)?;
 
     let notes: Vec<storage::Note> = serde_json::from_slice(&decrypted_bytes)
         .map_err(|e| format!("Decrypted payload is not valid notes JSON: {}", e))?;
