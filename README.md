@@ -102,15 +102,15 @@ omanotes-engine --set-cloud rclone "gdrive:OmarchyNotes_Vault" "" false
 omanotes-engine --set-cloud git "" "/path/to/private-vault-repo" false
 
 # Sync encrypted notes to configured cloud
-omanotes-engine --sync "<E2EE_PASSWORD>"
+echo "<E2EE_PASSWORD>" | omanotes-engine --sync
 
 # Pull and decrypt notes from cloud (Disaster Recovery)
-omanotes-engine --pull "<E2EE_PASSWORD>"
+echo "<E2EE_PASSWORD>" | omanotes-engine --pull
 ```
 
 ---
 
-## Security Architecture Standards (AGENTS.md Compliance)
+## Security Architecture Standards (Omarchy Security Compliance)
 
 OmaNotes strictly adheres to the Omarchy Linux Security Architecture Standards:
 
@@ -120,10 +120,15 @@ OmaNotes strictly adheres to the Omarchy Linux Security Architecture Standards:
    - User notes and configuration are saved to `~/.local/share/omanotes/notes.json` and `~/.local/state/omanotes/config.json`.
    - Files are written atomically using temporary files (`.tmp_*`), synced to disk (`sync_all()`), and created with explicit POSIX mode `0600` permissions.
    - Symlinks and foreign UIDs are strictly rejected before reading or writing.
-4. **QML UI Hardening:**
+4. **Bounded Cloud Restore & Storage Reads:**
+   - Cloud restore downloads exclusively into a private temporary staging file (`.tmp_cloud_restore_*`) enforcing a strict 10 MiB ciphertext ceiling (`--max-size 10M` and `--` flag delimiter).
+   - In case of overflow, timeout, or error, the staging file is immediately aborted and unlinked via RAII guard before publication.
+   - Staged payloads are validated for structure and envelope integrity before atomic rename over `notes.enc`.
+   - All storage reads enforce descriptor-bound `fstat` checks, a strict 10 MiB ceiling, and `take(MAX + 1)` bounded streaming with explicit oversize rejection.
+5. **QML UI Hardening:**
    - All user, system, and clipboard strings are rendered with `textFormat: Text.PlainText` to prevent HTML, CSS, or script injection.
    - Zero dynamic code evaluation (`eval()`, `createQmlObject()`).
-5. **Git Argument Injection Prevention:**
+6. **Git Argument Injection Prevention:**
    - Git commands utilize discrete argument slices with `--` delimiters and `-C <path>` canonical paths. `GIT_TERMINAL_PROMPT=0` prevents hanging prompts.
 
 ---

@@ -2,6 +2,7 @@ use crate::crypto::{self, EncryptedEnvelope};
 use crate::storage::{self, AppState};
 use crate::subproc::run_cmd_bounded;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -289,10 +290,45 @@ pub fn sync_cloud(state: &mut AppState, password: &str) -> SyncResult {
     }
 }
 
+/// Maximum allowed ciphertext size for cloud synchronization (10 MiB)
+pub const MAX_CIPHERTEXT_SIZE: u64 = 10 * 1024 * 1024;
+
+struct StagingCleanupGuard {
+    path: PathBuf,
+    active: bool,
+}
+
+impl Drop for StagingCleanupGuard {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
 /// Pulls and decrypts remote notes into local state
 pub fn pull_cloud(state: &mut AppState, password: &str) -> SyncResult {
     let provider = state.cloud.provider.to_lowercase();
-    let local_enc = storage::get_data_dir().join("notes.enc");
+    let data_dir = storage::get_data_dir();
+    if let Err(e) = storage::ensure_dir_0700(&data_dir) {
+        return SyncResult {
+            success: false,
+            message: format!("Failed to ensure data directory: {}", e),
+        };
+    }
+
+    let local_enc = data_dir.join("notes.enc");
+    let staging_enc = data_dir.join(format!(
+        ".tmp_cloud_restore_{}_{}",
+        std::process::id(),
+        storage::fastrand()
+    ));
+
+    let mut staging_guard = StagingCleanupGuard {
+        path: staging_enc.clone(),
+        active: true,
+    };
+
     let deadline = Instant::now() + Duration::from_secs(30);
 
     match provider.as_str() {
@@ -307,20 +343,35 @@ pub fn pull_cloud(state: &mut AppState, password: &str) -> SyncResult {
                 "{}/notes.enc",
                 state.cloud.rclone_remote.trim_end_matches('/')
             );
-            let local_enc_str = match local_enc.to_str() {
+            let staging_enc_str = match staging_enc.to_str() {
                 Some(s) => s,
                 None => {
                     return SyncResult {
                         success: false,
-                        message: "Invalid path".to_string(),
+                        message: "Invalid staging path".to_string(),
                     }
                 }
             };
-            let args = ["copyto", &remote_src, local_enc_str];
+            // Strictly enforce --max-size 10M during transfer with -- flag terminator
+            let args = [
+                "copyto",
+                "--max-size",
+                "10M",
+                "--",
+                &remote_src,
+                staging_enc_str,
+            ];
             if run_cmd_bounded("/usr/bin/rclone", &args, &[], deadline, 65536).is_none() {
                 return SyncResult {
                     success: false,
                     message: "Failed to download notes.enc from rclone remote".to_string(),
+                };
+            }
+
+            if !staging_enc.exists() {
+                return SyncResult {
+                    success: false,
+                    message: "Downloaded notes.enc exceeds maximum permitted size (10 MiB) or does not exist".to_string(),
                 };
             }
         }
@@ -372,7 +423,24 @@ pub fn pull_cloud(state: &mut AppState, password: &str) -> SyncResult {
                     message: "notes.enc does not exist in Git repository".to_string(),
                 };
             }
-            let _ = fs::copy(&remote_enc, &local_enc);
+
+            // Copy bounded bytes from git repo to private staging
+            let bytes = match storage::safe_read_bounded_0600(&remote_enc, MAX_CIPHERTEXT_SIZE) {
+                Ok(b) => b,
+                Err(e) => {
+                    return SyncResult {
+                        success: false,
+                        message: format!("Git vault notes.enc rejected: {}", e),
+                    };
+                }
+            };
+
+            if let Err(e) = storage::atomic_write_0600(&staging_enc, &bytes) {
+                return SyncResult {
+                    success: false,
+                    message: format!("Failed to stage git notes: {}", e),
+                };
+            }
         }
         _ => {
             return SyncResult {
@@ -382,27 +450,42 @@ pub fn pull_cloud(state: &mut AppState, password: &str) -> SyncResult {
         }
     }
 
-    match import_encrypted_envelope(&local_enc, password) {
-        Ok(notes) => {
-            state.notes = notes;
-            state.cloud.last_synced_at = now_secs();
-            state.cloud.last_sync_status = "synced".to_string();
-            state.cloud.last_sync_msg =
-                "Successfully pulled and decrypted notes from cloud".to_string();
-            let _ = storage::save_app_state(state);
-            SyncResult {
-                success: true,
-                message: "Successfully pulled and decrypted notes from cloud".to_string(),
-            }
-        }
+    // Ensure staging file has strict 0600 permissions
+    let _ = fs::set_permissions(&staging_enc, fs::Permissions::from_mode(0o600));
+
+    // Verify bounded staging file before atomically publishing as notes.enc
+    let notes = match import_encrypted_envelope(&staging_enc, password) {
+        Ok(notes) => notes,
         Err(e) => {
             state.cloud.last_sync_status = "error".to_string();
             state.cloud.last_sync_msg = format!("Decryption error on pull: {}", e);
             let _ = storage::save_app_state(state);
-            SyncResult {
+            return SyncResult {
                 success: false,
                 message: format!("Decryption error: {}", e),
-            }
+            };
         }
+    };
+
+    // Atomically publish validated staging file to local notes.enc
+    if let Err(e) = fs::rename(&staging_enc, &local_enc) {
+        return SyncResult {
+            success: false,
+            message: format!("Failed to atomically publish notes.enc: {}", e),
+        };
+    }
+
+    // Defuse staging cleanup guard now that atomic publication succeeded
+    staging_guard.active = false;
+
+    state.notes = notes;
+    state.cloud.last_synced_at = now_secs();
+    state.cloud.last_sync_status = "synced".to_string();
+    state.cloud.last_sync_msg =
+        "Successfully pulled and decrypted notes from cloud".to_string();
+    let _ = storage::save_app_state(state);
+    SyncResult {
+        success: true,
+        message: "Successfully pulled and decrypted notes from cloud".to_string(),
     }
 }

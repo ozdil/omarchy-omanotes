@@ -169,8 +169,18 @@ pub fn atomic_write_0600(file_path: &Path, content: &[u8]) -> Result<(), String>
     Ok(())
 }
 
-/// Safely reads file with strict mode 0600, UID match, and symlink rejection
+/// Maximum allowed file read ceiling to protect against unbounded memory allocation (10 MiB)
+pub const MAX_STORAGE_READ_SIZE: u64 = 10 * 1024 * 1024;
+const O_NOFOLLOW: i32 = 0o400000;
+
+/// Safely reads file with strict mode 0600, UID match, and symlink rejection up to MAX_STORAGE_READ_SIZE
 pub fn safe_read_0600(file_path: &Path) -> Result<Vec<u8>, String> {
+    safe_read_bounded_0600(file_path, MAX_STORAGE_READ_SIZE)
+}
+
+/// Safely reads file with strict mode 0600, UID match, descriptor-bound fstat checks,
+/// and take(max_bytes + 1) bounded reading with explicit oversize rejection.
+pub fn safe_read_bounded_0600(file_path: &Path, max_bytes: u64) -> Result<Vec<u8>, String> {
     if !file_path.exists() {
         return Err(format!("File does not exist: {:?}", file_path));
     }
@@ -184,6 +194,12 @@ pub fn safe_read_0600(file_path: &Path) -> Result<Vec<u8>, String> {
         return Err(format!(
             "Security violation: {:?} is not a regular file",
             file_path
+        ));
+    }
+    if meta.len() > max_bytes {
+        return Err(format!(
+            "Security violation: {:?} exceeds maximum permitted size of {} bytes (got {} bytes)",
+            file_path, max_bytes, meta.len()
         ));
     }
 
@@ -202,15 +218,52 @@ pub fn safe_read_0600(file_path: &Path) -> Result<Vec<u8>, String> {
         let _ = fs::set_permissions(file_path, fs::Permissions::from_mode(0o600));
     }
 
-    let mut f = fs::File::open(file_path)
+    let mut opts = OpenOptions::new();
+    opts.read(true).custom_flags(O_NOFOLLOW);
+
+    let f = opts
+        .open(file_path)
         .map_err(|e| format!("Failed to open file {:?}: {}", file_path, e))?;
+
+    let fd_meta = f
+        .metadata()
+        .map_err(|e| format!("fstat failed on {:?}: {}", file_path, e))?;
+    if !fd_meta.file_type().is_file() || fd_meta.file_type().is_symlink() {
+        return Err(format!(
+            "Security violation: descriptor for {:?} is not a regular file",
+            file_path
+        ));
+    }
+    if fd_meta.uid() != current_uid {
+        return Err(format!(
+            "Security violation: UID mismatch on descriptor for {:?}",
+            file_path
+        ));
+    }
+    if fd_meta.len() > max_bytes {
+        return Err(format!(
+            "Security violation: descriptor length {} exceeds max permitted limit {}",
+            fd_meta.len(),
+            max_bytes
+        ));
+    }
+
     let mut buf = Vec::new();
-    f.read_to_end(&mut buf)
+    f.take(max_bytes.saturating_add(1))
+        .read_to_end(&mut buf)
         .map_err(|e| format!("Failed to read file: {}", e))?;
+
+    if buf.len() as u64 > max_bytes {
+        return Err(format!(
+            "Security violation: file {:?} read buffer exceeded limit of {} bytes",
+            file_path, max_bytes
+        ));
+    }
+
     Ok(buf)
 }
 
-fn fastrand() -> u64 {
+pub fn fastrand() -> u64 {
     let mut bytes = [0u8; 8];
     let _ = getrandom::getrandom(&mut bytes);
     u64::from_le_bytes(bytes)
@@ -302,6 +355,29 @@ mod tests {
 
         let meta = fs::metadata(&file).expect("metadata");
         assert_eq!(meta.mode() & 0o777, 0o600);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_oversized_file_rejected_by_bounded_read() {
+        let dir = PathBuf::from("/tmp/test_omanotes_storage_oversize");
+        let _ = fs::remove_dir_all(&dir);
+        let file = dir.join("oversized.bin");
+
+        let content = vec![0x41u8; 1024]; // 1 KiB
+        atomic_write_0600(&file, &content).expect("atomic_write");
+
+        // Reading with 512 bytes limit must fail with oversize error
+        let res = safe_read_bounded_0600(&file, 512);
+        assert!(res.is_err());
+        let err_msg = res.unwrap_err();
+        assert!(err_msg.contains("exceeds maximum permitted size"));
+
+        // Reading with 2048 bytes limit must succeed
+        let ok_res = safe_read_bounded_0600(&file, 2048);
+        assert!(ok_res.is_ok());
+        assert_eq!(ok_res.unwrap().len(), 1024);
 
         let _ = fs::remove_dir_all(&dir);
     }

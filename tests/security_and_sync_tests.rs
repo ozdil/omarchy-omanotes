@@ -310,3 +310,70 @@ fn test_cli_argument_resilience_no_panics() {
 
     let _ = fs::remove_dir_all(&test_dir);
 }
+
+#[test]
+fn test_cloud_pull_oversize_rejected_and_cleaned_up() {
+    let base_dir = PathBuf::from("/tmp/test_omanotes_cloud_pull_oversize");
+    let _ = fs::remove_dir_all(&base_dir);
+    fs::create_dir_all(&base_dir).expect("create base dir");
+
+    let data_dir = base_dir.join("data");
+    let state_dir = base_dir.join("state");
+    let git_repo = base_dir.join("vault_repo");
+    fs::create_dir_all(&data_dir).expect("create data dir");
+    fs::create_dir_all(&state_dir).expect("create state dir");
+    fs::create_dir_all(&git_repo).expect("create git dir");
+
+    // Create an oversized file > 10 MiB (10 MiB + 1024 bytes) in the git vault
+    let oversize_data = vec![0x58u8; 10 * 1024 * 1024 + 1024];
+    fs::write(git_repo.join("notes.enc"), &oversize_data).expect("write oversized notes.enc");
+
+    // Configure git provider
+    let config_json = format!(
+        r#"{{"version":1,"e2ee_enabled":true,"salt":"00112233445566778899aabbccddeeff","cloud":{{"provider":"git","git_remote":"{}","rclone_remote":"","auto_sync":false,"last_synced_at":0,"last_sync_status":"idle","last_sync_msg":""}}}}"#,
+        git_repo.display()
+    );
+    fs::write(state_dir.join("config.json"), config_json.as_bytes()).expect("write config");
+
+    use std::io::Write;
+
+    // Run --pull with password passed securely via stdin
+    let mut cmd = Command::new("cargo");
+    cmd.args(["run", "--quiet", "--", "--pull"]);
+    cmd.env("OMANOTES_DATA_DIR", &data_dir);
+    cmd.env("OMANOTES_STATE_DIR", &state_dir);
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    let mut child = cmd.spawn().expect("spawn cargo");
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(b"TestPassword123!\n");
+    }
+    let out = child.wait_with_output().expect("wait for output");
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let combined = format!("{}\n{}", stdout, stderr);
+
+    // Should indicate failure and rejection of oversized payload
+    assert!(
+        combined.contains("rejected") || combined.contains("exceeds") || combined.contains("error"),
+        "Should reject oversized cloud notes: {}",
+        combined
+    );
+
+    // Ensure no .tmp_cloud_restore files linger in data_dir
+    if let Ok(entries) = fs::read_dir(&data_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            assert!(
+                !name_str.starts_with(".tmp_cloud_restore"),
+                "Staging file must be cleaned up on failure: {}",
+                name_str
+            );
+        }
+    }
+
+    let _ = fs::remove_dir_all(&base_dir);
+}
