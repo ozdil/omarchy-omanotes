@@ -28,6 +28,7 @@ Panel {
   property string searchQuery: ""
   property string activeView: "notes" // "notes", "archived", "settings"
   property string toastMsg: ""
+  readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font")
 
   // New note creation state
   property bool isCreatingChecklist: false
@@ -375,7 +376,7 @@ Panel {
                 textFormat: Text.PlainText
                 text: "OmaNotes"
                 color: root.bar ? root.bar.foreground : Color.foreground
-                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.family: root.fontFamily
                 font.pixelSize: Style.font.title
                 font.bold: true
               }
@@ -405,7 +406,7 @@ Panel {
               textFormat: Text.PlainText
               text: root.cloudConfig.last_sync_msg || "Zero-Knowledge Google Keep for Omarchy Linux"
               color: Color.muted
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               elide: Text.ElideRight
               width: parent.width
