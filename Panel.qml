@@ -28,7 +28,7 @@ Panel {
   property string searchQuery: ""
   property string activeView: "notes" // "notes", "archived", "settings"
   property string toastMsg: ""
-  readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font")
+  readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font, JetBrains Mono, monospace")
 
   // New note creation state
   property bool isCreatingChecklist: false
