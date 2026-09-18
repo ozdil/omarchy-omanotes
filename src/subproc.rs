@@ -249,6 +249,189 @@ pub fn run_cmd_bounded(
     Some(buffer)
 }
 
+/// Streams subprocess stdout directly to an open file descriptor, enforcing a hard byte limit.
+/// If max_bytes is exceeded or deadline is reached, the subprocess process group
+/// is terminated immediately with SIGTERM/SIGKILL, and an error is returned.
+pub fn run_cmd_stream_to_file(
+    cmd_path: &str,
+    args: &[&str],
+    extra_envs: &[(&str, &str)],
+    target_file: &mut std::fs::File,
+    deadline: Instant,
+    max_bytes: usize,
+) -> Result<usize, String> {
+    use std::io::Write;
+
+    if Instant::now() >= deadline {
+        return Err("Execution deadline already expired".to_string());
+    }
+
+    let mut cmd = Command::new(cmd_path);
+    cmd.args(args)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    for (k, v) in extra_envs {
+        cmd.env(k, v);
+    }
+
+    cmd.process_group(0);
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn {}: {}", cmd_path, e))?;
+    let pid = child.id() as i32;
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Failed to take child stdout pipe".to_string())?;
+    let raw_fd = stdout.as_raw_fd();
+
+    // Set O_NONBLOCK on pipe
+    unsafe {
+        let flags = fcntl(raw_fd, F_GETFL, 0);
+        if flags >= 0 {
+            let _ = fcntl(raw_fd, F_SETFL, flags | O_NONBLOCK);
+        }
+    }
+
+    let mut guard = ProcessGroupGuard {
+        child: &mut child,
+        pid,
+        active: true,
+    };
+
+    let mut total_written = 0usize;
+    let mut chunk = [0u8; 8192];
+    let mut stdout_closed = false;
+    let mut direct_child_exited = false;
+    let mut direct_child_success = false;
+
+    loop {
+        if Instant::now() >= deadline {
+            return Err("Subprocess exceeded monotonic deadline".to_string());
+        }
+
+        if !direct_child_exited {
+            match guard.child.try_wait() {
+                Ok(Some(status)) => {
+                    direct_child_exited = true;
+                    direct_child_success = status.success();
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    return Err(format!("Child wait error: {}", e));
+                }
+            }
+        }
+
+        if direct_child_exited && stdout_closed {
+            break;
+        }
+
+        if stdout_closed {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err("Timeout waiting for subprocess exit".to_string());
+            }
+            std::thread::sleep(Duration::from_millis(5).min(remaining));
+            continue;
+        }
+
+        let now = Instant::now();
+        let remaining_ms =
+            (deadline.saturating_duration_since(now).as_millis().min(50) as i32).max(1);
+        let mut pfd = PollFd {
+            fd: raw_fd,
+            events: POLLIN | POLLHUP | POLLERR,
+            revents: 0,
+        };
+
+        let ret = unsafe { poll(&mut pfd, 1, remaining_ms) };
+        if ret < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(format!("Poll error: {}", err));
+        } else if ret == 0 {
+            continue;
+        }
+
+        if pfd.revents & POLLIN != 0 {
+            loop {
+                match stdout.read(&mut chunk) {
+                    Ok(0) => {
+                        stdout_closed = true;
+                        break;
+                    }
+                    Ok(n) => {
+                        if total_written + n > max_bytes {
+                            // Ceiling exceeded! Guard drop will kill rclone process group!
+                            return Err(format!(
+                                "Transfer exceeded maximum byte limit ({} bytes)",
+                                max_bytes
+                            ));
+                        }
+                        target_file
+                            .write_all(&chunk[..n])
+                            .map_err(|e| format!("Failed to write to staging file: {}", e))?;
+                        total_written += n;
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        break;
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {
+                        continue;
+                    }
+                    Err(e) => {
+                        return Err(format!("Read pipe error: {}", e));
+                    }
+                }
+            }
+        }
+
+        if pfd.revents & (POLLHUP | POLLERR) != 0 {
+            loop {
+                match stdout.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if total_written + n > max_bytes {
+                            return Err(format!(
+                                "Transfer exceeded maximum byte limit ({} bytes)",
+                                max_bytes
+                            ));
+                        }
+                        target_file
+                            .write_all(&chunk[..n])
+                            .map_err(|e| format!("Failed to write to staging file: {}", e))?;
+                        total_written += n;
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => break,
+                }
+            }
+            stdout_closed = true;
+        }
+    }
+
+    if !direct_child_success {
+        return Err("Subprocess exited with failure status".to_string());
+    }
+
+    target_file
+        .sync_all()
+        .map_err(|e| format!("Failed to fsync staging file: {}", e))?;
+
+    guard.active = false;
+    Ok(total_written)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

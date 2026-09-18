@@ -1,8 +1,8 @@
 use crate::crypto::{self, EncryptedEnvelope};
 use crate::storage::{self, AppState};
-use crate::subproc::run_cmd_bounded;
+use crate::subproc::{run_cmd_bounded, run_cmd_stream_to_file};
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -343,35 +343,44 @@ pub fn pull_cloud(state: &mut AppState, password: &str) -> SyncResult {
                 "{}/notes.enc",
                 state.cloud.rclone_remote.trim_end_matches('/')
             );
-            let staging_enc_str = match staging_enc.to_str() {
-                Some(s) => s,
-                None => {
+
+            // Exclusively create the private staging file with mode 0600
+            let mut staging_file = match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&staging_enc)
+            {
+                Ok(f) => f,
+                Err(e) => {
                     return SyncResult {
                         success: false,
-                        message: "Invalid staging path".to_string(),
-                    }
+                        message: format!("Failed to create private staging file: {}", e),
+                    };
                 }
             };
-            // Strictly enforce --max-size 10M during transfer with -- flag terminator
+
+            // Stream remote object through parent-controlled pipe with strict byte counting
+            // Terminate rclone process group at MAX_CIPHERTEXT_SIZE + 1
+            // Keep --max-size 10M as an early rejection metadata filter optimization
             let args = [
-                "copyto",
+                "cat",
                 "--max-size",
                 "10M",
                 "--",
                 &remote_src,
-                staging_enc_str,
             ];
-            if run_cmd_bounded("/usr/bin/rclone", &args, &[], deadline, 65536).is_none() {
+            if let Err(e) = run_cmd_stream_to_file(
+                "/usr/bin/rclone",
+                &args,
+                &[],
+                &mut staging_file,
+                deadline,
+                MAX_CIPHERTEXT_SIZE as usize,
+            ) {
                 return SyncResult {
                     success: false,
-                    message: "Failed to download notes.enc from rclone remote".to_string(),
-                };
-            }
-
-            if !staging_enc.exists() {
-                return SyncResult {
-                    success: false,
-                    message: "Downloaded notes.enc exceeds maximum permitted size (10 MiB) or does not exist".to_string(),
+                    message: format!("Failed to stream notes.enc from rclone remote: {}", e),
                 };
             }
         }
