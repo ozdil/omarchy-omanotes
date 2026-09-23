@@ -1,4 +1,7 @@
 target/
 omanotes-engine
+.engine-provenance
+.engine-build.lock
 *.enc
 .tmp_*
+

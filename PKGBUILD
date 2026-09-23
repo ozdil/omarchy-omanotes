@@ -1,8 +1,8 @@
 # Maintainer: Ozan Özdil (ozdil) <ozan@pm.me>
 pkgname=omarchy-omanotes
 pkgver=1.0.0
-pkgrel=3
-_commit="18d6a4295345fde71bcb1db155572a11f52fb0c4"
+pkgrel=4
+_commit="b425e57e01c4399e0c82b37972a2e72050d2acc5"
 pkgdesc="Zero-Knowledge E2EE & Cloud-Sync Google Keep clone for Omarchy Linux"
 arch=('x86_64')
 url="https://github.com/ozdil/omarchy-omanotes"
@@ -14,7 +14,8 @@ optdepends=(
 )
 makedepends=('cargo' 'rust')
 source=("$pkgname-$_commit.tar.gz::$url/archive/$_commit.tar.gz")
-sha256sums=('cfae117bd74442e7de011e034e849c2cc4250e5b6a9fa03d52c4a16043805372')
+sha256sums=('4ae830246f075f7fc17f1fd789d789966d2e875abc70f00ed0c27e74c04d3e2e')
+
 
 build() {
   cd "$pkgname-$_commit"
