@@ -66,14 +66,14 @@ Panel {
   function addFromClipboard(color) {
     actionProc.command = [root.resolveEnginePath(), "--add-clipboard", color || root.newNoteColor]
     actionProc.running = true
-    root.showToast("📋 Added note from clipboard")
+    root.showToast("Added note from clipboard")
   }
 
   function addTemplate(type) {
     actionProc.command = [root.resolveEnginePath(), "--add-template", type]
     actionProc.running = true
     var label = (type === "shopping" ? "Grocery List" : (type === "daily" ? "Daily Priorities" : (type === "idea" ? "New Idea" : "Reminder")))
-    root.showToast("➕ Created " + label)
+    root.showToast("Created " + label)
   }
 
   function duplicateNote(id) {
@@ -298,6 +298,11 @@ Panel {
     }
   }
 
+  Process {
+    id: openWindowProc
+    command: ["omanotes-dashboard"]
+  }
+
   Timer {
     id: toastTimer
     interval: 3500
@@ -420,9 +425,23 @@ Panel {
             spacing: Style.space(6)
 
             Button {
-              text: "☕"
-              tooltipText: "Buy Me a Coffee"
-              foreground: "#FFDD00"
+              text: "Window"
+              iconText: "\uf2d0"
+              tooltipText: "Open Standalone Notes Window"
+              fontFamily: root.fontFamily
+              fontSize: Style.font.caption
+              bordered: true
+              onClicked: {
+                root.close()
+                openWindowProc.running = true
+              }
+            }
+
+            Button {
+              text: "Donate"
+              iconText: "\uf0f4"
+              tooltipText: "Support Omarchy Project"
+              foreground: root.foreground
               fontSize: Style.font.caption
               bordered: true
               onClicked: Qt.openUrlExternally("https://buymeacoffee.com/ozdil")
@@ -596,24 +615,24 @@ Panel {
             // Primary: Paste from Clipboard as Note (Zero Typing!)
             Button {
               Layout.fillWidth: true
-              text: "📋 Paste from Clipboard"
+              text: "Paste from Clipboard"
               iconText: "󰅌"
               onClicked: root.addFromClipboard("yellow")
             }
 
             // Quick templates
             Button {
-              text: "🛒 Groceries"
+              text: "Groceries"
               onClicked: root.addTemplate("shopping")
             }
 
             Button {
-              text: "📅 Priorities"
+              text: "Priorities"
               onClicked: root.addTemplate("daily")
             }
 
             Button {
-              text: "💡 Idea"
+              text: "Idea"
               onClicked: root.addTemplate("idea")
             }
           }
@@ -630,7 +649,7 @@ Panel {
             }
 
             Button {
-              text: "📌 Pinned (" + root.pinnedNotesCount + ")"
+              text: "Pinned (" + root.pinnedNotesCount + ")"
               selected: root.filterMode === "pinned"
               onClicked: root.filterMode = "pinned"
             }

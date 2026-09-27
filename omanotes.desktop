@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OmaNotes
+GenericName=Encrypted Notes & Vault
+Comment=Zero-Trust Encrypted Markdown & Checklist Notes Vault for Omarchy Linux
+Exec=omanotes-dashboard
+Icon=accessories-text-editor
+Terminal=false
+Categories=Utility;TextEditor;Office;
+Keywords=notes;markdown;checklist;vault;encrypted;e2ee;omarchy;
