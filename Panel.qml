@@ -298,10 +298,7 @@ Panel {
     }
   }
 
-  Process {
-    id: openWindowProc
-    command: ["omanotes-dashboard"]
-  }
+
 
   Timer {
     id: toastTimer
@@ -424,18 +421,6 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
 
-            Button {
-              text: "Window"
-              iconText: "\uf2d0"
-              tooltipText: "Open Standalone Notes Window"
-              fontFamily: root.fontFamily
-              fontSize: Style.font.caption
-              bordered: true
-              onClicked: {
-                root.close()
-                openWindowProc.running = true
-              }
-            }
 
             Button {
               text: "Donate"
