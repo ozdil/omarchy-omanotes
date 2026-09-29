@@ -1118,7 +1118,7 @@ Panel {
         }
 
         Text {
-          text: "Version: 1.1.0\nDeveloper: Ozan Ozdil (@ozdil)\nLicense: MIT\nEnd-to-End Encrypted (E2EE) Notes & Task Manager"
+          text: "Version: 1.3.0\nDeveloper: Ozan Ozdil (@ozdil)\nLicense: MIT\nEnd-to-End Encrypted (E2EE) Notes & Task Manager"
           color: root.foreground
           opacity: 0.7
           font.family: root.fontFamily
