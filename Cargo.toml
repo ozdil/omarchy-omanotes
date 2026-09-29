@@ -1,6 +1,6 @@
 [package]
 name = "omanotes-engine"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["Ozan Özdil <ozan@pm.me>"]
 description = "Zero-Knowledge E2EE & Cloud-Sync Note Manager Engine for Omarchy Linux"
