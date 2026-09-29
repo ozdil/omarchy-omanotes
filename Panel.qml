@@ -28,6 +28,9 @@ Panel {
   property string searchQuery: ""
   property string activeView: "notes" // "notes", "archived", "settings"
   property string toastMsg: ""
+  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color dim: Qt.darker(foreground, 1.45)
+  readonly property color accent: Color.accent
   readonly property string fontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : ((typeof Style !== "undefined" && Style.font && Style.font.family) ? Style.font.family : "JetBrainsMono Nerd Font, JetBrains Mono, monospace")
 
   // New note creation state
@@ -42,6 +45,7 @@ Panel {
   property string cloudRemoteInput: "gdrive:OmarchyNotes"
   property string cloudGitInput: ""
   property bool isSyncing: false
+  property bool showAboutModal: false
 
   // Stdin framing payload buffers (cleared immediately after handoff)
   property string pendingActionPayload: ""
@@ -343,18 +347,48 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(660))
     contentHeight: panel.fittedContentHeight(panelColumn.implicitHeight + Style.space(24), Style.space(840))
 
-    ScrollView {
-      id: scrollArea
+    PanelKeyCatcher {
+      id: keyCatcher
       anchors.fill: parent
-      clip: true
-      ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-      ScrollBar.vertical.policy: panelColumn.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+      onCloseRequested: {
+        if (root.showAboutModal) {
+          root.showAboutModal = false
+        } else {
+          root.close()
+        }
+      }
+      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onTextKey: function(t) {
+        if (t === "r" || t === "R") {
+          root.refresh()
+        } else if (t === "a" || t === "A") {
+          root.showAboutModal = !root.showAboutModal
+        } else if (t === "v" || t === "V") {
+          root.addFromClipboard("yellow")
+        } else if (t === "s" || t === "S") {
+          root.triggerCloudSync()
+        } else if (t === "1") {
+          root.activeView = "notes"
+        } else if (t === "2") {
+          root.activeView = "archived"
+        } else if (t === "3") {
+          root.activeView = "settings"
+        }
+      }
 
-      Column {
-        id: panelColumn
+      ScrollView {
+        id: scrollArea
+        anchors.fill: parent
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: panelColumn.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+
+        Column {
+          id: panelColumn
         width: scrollArea.availableWidth
         spacing: Style.space(14)
 
@@ -423,13 +457,14 @@ Panel {
 
 
             Button {
-              text: "Donate"
-              iconText: "\uf0f4"
-              tooltipText: "Support Omarchy Project"
+              iconText: "󰋽"
+              tooltipText: "About & Imprint"
               foreground: root.foreground
+              accent: root.accent
+              fontFamily: root.fontFamily
               fontSize: Style.font.caption
               bordered: true
-              onClicked: Qt.openUrlExternally("https://buymeacoffee.com/ozdil")
+              onClicked: root.showAboutModal = !root.showAboutModal
             }
 
             Button {
@@ -1036,6 +1071,91 @@ Panel {
           }
         }
       }
+    }
+
+    // About & Imprint Modal Overlay
+    Rectangle {
+      id: aboutOverlay
+      anchors.fill: parent
+      visible: root.showAboutModal
+      color: Qt.rgba(0.05, 0.05, 0.07, 0.96)
+      z: 99
+
+      MouseArea {
+        anchors.fill: parent
+        // Block underlying clicks
+      }
+
+      Column {
+        anchors.centerIn: parent
+        width: parent.width - Style.space(40)
+        spacing: Style.space(12)
+
+        Row {
+          width: parent.width
+          Item {
+            width: parent.width - closeAboutBtn.implicitWidth
+            implicitHeight: aboutTitleText.implicitHeight
+            Text {
+              id: aboutTitleText
+              text: "OmaNotes"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+              font.bold: true
+            }
+          }
+
+          Button {
+            id: closeAboutBtn
+            text: "✕"
+            bordered: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            onClicked: root.showAboutModal = false
+          }
+        }
+
+        Text {
+          text: "Version: 1.1.0\nDeveloper: Ozan Ozdil (@ozdil)\nLicense: MIT\nEnd-to-End Encrypted (E2EE) Notes & Task Manager"
+          color: root.foreground
+          opacity: 0.7
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          lineHeight: 1.3
+        }
+
+        PanelSeparator {
+          width: parent.width
+          foreground: root.foreground
+        }
+
+        Button {
+          width: parent.width
+          text: "GitHub / Contact"
+          iconText: "󰊤"
+          bordered: true
+          foreground: root.foreground
+          accent: root.accent
+          fontFamily: root.fontFamily
+          fontSize: Style.font.caption
+          onClicked: Qt.openUrlExternally("https://github.com/ozdil")
+        }
+
+        Button {
+          width: parent.width
+          text: "Buy Me a Coffee"
+          iconText: "󰅖"
+          bordered: true
+          foreground: "#000000"
+          color: "#FFDD00"
+          fontFamily: root.fontFamily
+          fontSize: Style.font.caption
+          onClicked: Qt.openUrlExternally("https://buymeacoffee.com/ozdil")
+        }
+      }
+    }
     }
   }
 }
