@@ -4,6 +4,8 @@
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy_Me_A_Coffee-Support_Development-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ozdil)
 
+![OmaNotes Preview](preview.png)
+
 A fast, private, and mouse/touch-friendly note-taking and checklist application built natively with Quickshell for Omarchy Linux, backed by a hardened Rust engine with AES-256-GCM Zero-Knowledge End-to-End Encryption and multi-cloud synchronization (Google Drive & Git).
 
 Author: Ozan Özdil (ozdil)  
