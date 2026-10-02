@@ -1,6 +1,6 @@
 # Maintainer: Ozan Özdil (ozdil) <ozan@pm.me>
 pkgname=omarchy-omanotes
-pkgver=1.3.0
+pkgver=1.3.1
 pkgrel=1
 _commit="b425e57e01c4399e0c82b37972a2e72050d2acc5"
 pkgdesc="Zero-Knowledge E2EE & Cloud-Sync Google Keep clone for Omarchy Linux"
