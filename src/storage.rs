@@ -199,7 +199,9 @@ pub fn safe_read_bounded_0600(file_path: &Path, max_bytes: u64) -> Result<Vec<u8
     if meta.len() > max_bytes {
         return Err(format!(
             "Security violation: {:?} exceeds maximum permitted size of {} bytes (got {} bytes)",
-            file_path, max_bytes, meta.len()
+            file_path,
+            max_bytes,
+            meta.len()
         ));
     }
 

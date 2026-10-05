@@ -19,12 +19,12 @@ Plugin ID: ozdil.omanotes
 - **Google Keep-Style Color Cards:** Categorize and visually organize notes with vibrant pastel themes (Yellow, Green, Blue, Purple, Red, Teal).
 - **Interactive Checklists (To-Do):** Native strikethrough checkboxes, instant item completion, and one-click removal of completed items.
 - **Mouse-First & Keyboardless Usability:**
-  - One-click **"📋 Paste from Clipboard"** button (via `wl-paste`) creates cards instantly without typing.
-  - One-click template buttons: `🛒 Groceries`, `📅 Priorities`, `💡 Idea`.
-  - Mouse-driven color-dot and status filter chips (`All`, `📌 Pinned`, `󰄲 Checklist`, and color swatches).
-  - Quick action bar on each card: Pin (`󰤱`), Duplicate (`󰆏`), Delete (`󰅖`), and inline color palette.
+  - One-click **"Paste from Clipboard"** button (via `wl-paste`) creates cards instantly without typing.
+  - One-click template buttons: `Groceries`, `Priorities`, `Idea`.
+  - Mouse-driven color-dot and status filter chips (`All`, `Pinned`, `Checklist`, and color swatches).
+  - Quick action bar on each card: Pin, Duplicate, Delete, and inline color palette.
 - **Zero-Knowledge End-to-End Encryption (E2EE):**
-  - All notes are encrypted client-side using PBKDF2-HMAC-SHA256 (10,000 iterations), 16-byte random salt, 12-byte random nonce, and AES-256-GCM before ever leaving your machine.
+  - All notes are encrypted client-side using Argon2id v2 KDF (RFC 9106, 64 MiB m_cost, 3 iterations, 1 lane), 16-byte random salt, 12-byte random nonce, and AES-256-GCM before ever leaving your machine (with backward compatibility for PBKDF2 v1 envelopes).
   - Zero plaintext leakage in cloud storage or backups.
 - **Multi-Cloud Synchronization:**
   - **Google Drive, Nextcloud, WebDAV:** Seamless encrypted sync via `rclone`.
@@ -86,8 +86,8 @@ OmaNotes provides a robust, zero-panic CLI engine for scripting, terminal usage,
 # Display system status, note counts, and cloud sync status
 omanotes-engine --status
 
-# Add a note
-omanotes-engine --add "Meeting Notes" "Discuss architecture and deployment" "blue" false "work"
+# Add a note (JSON payload via stdin to prevent /proc/<pid>/cmdline leaks)
+echo '{"title": "Meeting Notes", "content": "Discuss architecture and deployment", "color": "blue", "is_checklist": false, "tags": ["work"]}' | omanotes-engine --add
 
 # Add a template note (shopping, daily, idea, reminder)
 omanotes-engine --add-template daily
@@ -101,9 +101,9 @@ omanotes-engine --toggle-pin <NOTE_ID>
 # Toggle checklist item
 omanotes-engine --toggle-check <NOTE_ID> <ITEM_ID>
 
-# Set cloud synchronization provider
-omanotes-engine --set-cloud rclone "gdrive:OmarchyNotes_Vault" "" false
-omanotes-engine --set-cloud git "" "/path/to/private-vault-repo" false
+# Set cloud synchronization provider (JSON payload via stdin)
+echo '{"provider": "rclone", "rclone_remote": "gdrive:OmarchyNotes_Vault", "git_remote": "", "auto_sync": false}' | omanotes-engine --set-cloud
+echo '{"provider": "git", "rclone_remote": "", "git_remote": "/path/to/private-vault-repo", "auto_sync": false}' | omanotes-engine --set-cloud
 
 # Sync encrypted notes to configured cloud
 echo "<E2EE_PASSWORD>" | omanotes-engine --sync

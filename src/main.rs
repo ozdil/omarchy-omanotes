@@ -7,7 +7,7 @@ use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 use storage::{AppState, ChecklistItem, Note};
 
-use std::io::{BufRead, Read};
+use std::io::Read;
 
 const MAX_PAYLOAD_BYTES: u64 = 262_144; // 256 KiB strict cap to prevent memory exhaustion / DoS
 
@@ -66,13 +66,21 @@ struct PasswordPayload {
 
 fn read_framed_stdin<T: serde::de::DeserializeOwned>() -> Result<T, String> {
     let stdin = std::io::stdin();
-    let mut handle = stdin.lock().take(MAX_PAYLOAD_BYTES);
-    let mut line = String::new();
+    let mut handle = stdin.lock().take(MAX_PAYLOAD_BYTES + 1);
+    let mut buffer = Vec::new();
     handle
-        .read_line(&mut line)
+        .read_to_end(&mut buffer)
         .map_err(|_| "Failed to read payload from stdin".to_string())?;
 
-    let trimmed = line.trim();
+    if buffer.len() as u64 > MAX_PAYLOAD_BYTES {
+        return Err(format!(
+            "Payload exceeds strict maximum size limit of {} bytes",
+            MAX_PAYLOAD_BYTES
+        ));
+    }
+
+    let text = std::str::from_utf8(&buffer).map_err(|e| format!("Invalid UTF-8 payload: {}", e))?;
+    let trimmed = text.trim();
     if trimmed.is_empty() {
         return Err("Payload on stdin is empty".to_string());
     }
@@ -81,13 +89,22 @@ fn read_framed_stdin<T: serde::de::DeserializeOwned>() -> Result<T, String> {
 
 fn read_password_stdin() -> Result<String, String> {
     let stdin = std::io::stdin();
-    let mut handle = stdin.lock().take(MAX_PAYLOAD_BYTES);
-    let mut line = String::new();
+    let mut handle = stdin.lock().take(MAX_PAYLOAD_BYTES + 1);
+    let mut buffer = Vec::new();
     handle
-        .read_line(&mut line)
+        .read_to_end(&mut buffer)
         .map_err(|_| "Failed to read password from stdin".to_string())?;
 
-    let trimmed = line.trim();
+    if buffer.len() as u64 > MAX_PAYLOAD_BYTES {
+        return Err(format!(
+            "Password exceeds strict maximum size limit of {} bytes",
+            MAX_PAYLOAD_BYTES
+        ));
+    }
+
+    let text =
+        std::str::from_utf8(&buffer).map_err(|e| format!("Invalid UTF-8 password: {}", e))?;
+    let trimmed = text.trim();
     if trimmed.is_empty() {
         return Ok(String::new());
     }

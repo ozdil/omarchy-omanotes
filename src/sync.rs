@@ -363,13 +363,7 @@ pub fn pull_cloud(state: &mut AppState, password: &str) -> SyncResult {
             // Stream remote object through parent-controlled pipe with strict byte counting
             // Terminate rclone process group at MAX_CIPHERTEXT_SIZE + 1
             // Keep --max-size 10M as an early rejection metadata filter optimization
-            let args = [
-                "cat",
-                "--max-size",
-                "10M",
-                "--",
-                &remote_src,
-            ];
+            let args = ["cat", "--max-size", "10M", "--", &remote_src];
             if let Err(e) = run_cmd_stream_to_file(
                 "/usr/bin/rclone",
                 &args,
@@ -490,8 +484,7 @@ pub fn pull_cloud(state: &mut AppState, password: &str) -> SyncResult {
     state.notes = notes;
     state.cloud.last_synced_at = now_secs();
     state.cloud.last_sync_status = "synced".to_string();
-    state.cloud.last_sync_msg =
-        "Successfully pulled and decrypted notes from cloud".to_string();
+    state.cloud.last_sync_msg = "Successfully pulled and decrypted notes from cloud".to_string();
     let _ = storage::save_app_state(state);
     SyncResult {
         success: true,

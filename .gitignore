@@ -4,4 +4,6 @@ omanotes-engine
 .engine-build.lock
 *.enc
 .tmp_*
+__pycache__/
+*.pyc
 

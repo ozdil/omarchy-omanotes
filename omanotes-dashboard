@@ -32,6 +32,10 @@ for var in LD_PRELOAD LD_LIBRARY_PATH RUSTC_WRAPPER CARGO_BUILD_RUSTC_WRAPPER RU
     fi
 done
 
+DIR="$(cd "$(/usr/bin/dirname "$(/usr/bin/realpath "${BASH_SOURCE[0]}")")" && /usr/bin/pwd)"
+BIN="${DIR}/omanotes-engine"
+STAMP="${DIR}/.engine-provenance"
+
 # Resolve trusted quickshell binary
 QUICKSHELL_BIN=""
 if [[ -x /usr/bin/quickshell ]]; then
@@ -56,10 +60,6 @@ fi
 if [[ "${1:-}" == "--cli" ]]; then
     shift
 fi
-
-DIR="$(cd "$(/usr/bin/dirname "$(/usr/bin/realpath "${BASH_SOURCE[0]}")")" && /usr/bin/pwd)"
-BIN="${DIR}/omanotes-engine"
-STAMP="${DIR}/.engine-provenance"
 
 # Resolve trusted cargo binary
 CARGO_BIN=""

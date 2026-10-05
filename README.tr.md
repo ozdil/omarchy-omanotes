@@ -42,18 +42,17 @@ Eklenti Kimliği: ozdil.omanotes
 
 ---
 
-## Kurulum ve Derleme
+## Kurulum ve Kaldırma
 
 ```bash
 # Eklenti dizinine gidin
 cd ~/.config/omarchy/plugins/ozdil.omanotes
 
-# Motoru derleyin
-cargo build --release
+# Motoru derleyin ve kullanıcı alanına kurun
+./build.sh
 
-# İkiliyi kurun
-cp target/release/omanotes-engine ./omanotes-engine
-cp target/release/omanotes-engine ~/.local/bin/omanotes-engine
+# Kaldırmak istediğinizde
+./uninstall.sh
 ```
 
 ---

@@ -50,7 +50,7 @@ Panel {
   readonly property string manifestFallbackPath: (Quickshell.env("HOME") || "/home/ozdil") + "/.config/omarchy/plugins/ozdil.omanotes/manifest.json"
 
   property string pluginName: "OmaNotes"
-  property string pluginVersion: "1.3.1"
+  property string pluginVersion: "1.4.0"
   property string pluginDescription: "Zero-Knowledge E2EE Google Keep alternative for Omarchy Linux with Argon2id v2 KDF, encrypted checklists, and cloud sync."
   property string pluginAuthor: "Ozan Özdil (ozdil)"
   property string pluginLicense: "MIT"
@@ -476,7 +476,7 @@ Panel {
                   anchors.centerIn: parent
                   text: root.e2eeEnabled ? "E2EE ENCRYPTED" : "LOCAL"
                   color: root.e2eeEnabled ? Color.accent : Color.muted
-                  font.family: Style.font.family
+                  font.family: root.fontFamily
                   font.pixelSize: Style.font.caption - 1
                   font.bold: true
                 }
@@ -543,7 +543,7 @@ Panel {
             textFormat: Text.PlainText
             text: root.toastMsg
             color: Color.accent
-            font.family: Style.font.family
+            font.family: root.fontFamily
             font.pixelSize: Style.font.body
             font.bold: true
           }
@@ -566,7 +566,7 @@ Panel {
             textFormat: Text.PlainText
             text: "Notes are encrypted locally with AES-256-GCM before being sent to the cloud. If you lose your master password, encrypted backups cannot be recovered."
             color: Color.muted
-            font.family: Style.font.family
+            font.family: root.fontFamily
             font.pixelSize: Style.font.caption
           }
 
@@ -628,7 +628,7 @@ Panel {
               textFormat: Text.PlainText
               text: "rclone Remote Target (e.g. gdrive:OmarchyNotes or nextcloud:Notes)"
               color: Color.muted
-              font.family: Style.font.family
+              font.family: root.fontFamily
               font.pixelSize: Style.font.caption
             }
 
@@ -648,7 +648,7 @@ Panel {
               textFormat: Text.PlainText
               text: "Local Git Repository Directory (commits notes.enc)"
               color: Color.muted
-              font.family: Style.font.family
+              font.family: root.fontFamily
               font.pixelSize: Style.font.caption
             }
 
@@ -868,7 +868,7 @@ Panel {
                           Layout.fillWidth: true
                           textFormat: Text.PlainText
                           text: modelData.title || "Untitled"
-                          font.family: Style.font.family
+                          font.family: root.fontFamily
                           font.pixelSize: Style.font.body
                           font.bold: true
                           color: Color.foreground
@@ -904,7 +904,7 @@ Panel {
                               Layout.fillWidth: true
                               textFormat: Text.PlainText
                               text: modelData.text || ""
-                              font.family: Style.font.family
+                              font.family: root.fontFamily
                               font.pixelSize: Style.font.caption
                               font.strikeout: modelData.checked
                               color: modelData.checked ? Color.muted : Color.foreground
@@ -919,7 +919,7 @@ Panel {
                         width: parent.width
                         textFormat: Text.PlainText
                         text: modelData.content || ""
-                        font.family: Style.font.family
+                        font.family: root.fontFamily
                         font.pixelSize: Style.font.caption
                         color: Color.foreground
                         wrapMode: Text.Wrap
@@ -1014,7 +1014,7 @@ Panel {
                           Layout.fillWidth: true
                           textFormat: Text.PlainText
                           text: modelData.title || "Untitled"
-                          font.family: Style.font.family
+                          font.family: root.fontFamily
                           font.pixelSize: Style.font.body
                           font.bold: true
                           color: Color.foreground
@@ -1050,7 +1050,7 @@ Panel {
                               Layout.fillWidth: true
                               textFormat: Text.PlainText
                               text: modelData.text || ""
-                              font.family: Style.font.family
+                              font.family: root.fontFamily
                               font.pixelSize: Style.font.caption
                               font.strikeout: modelData.checked
                               color: modelData.checked ? Color.muted : Color.foreground
@@ -1065,7 +1065,7 @@ Panel {
                         width: parent.width
                         textFormat: Text.PlainText
                         text: modelData.content || ""
-                        font.family: Style.font.family
+                        font.family: root.fontFamily
                         font.pixelSize: Style.font.caption
                         color: Color.foreground
                         wrapMode: Text.Wrap
@@ -1180,7 +1180,7 @@ Panel {
 
           Button {
             id: closeAboutBtn
-            text: "✕"
+            text: "\uf00d"
             bordered: true
             foreground: root.foreground
             fontFamily: root.fontFamily

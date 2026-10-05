@@ -50,7 +50,10 @@ fn test_security_ciphertext_tampering_rejected() {
         &bin,
         &["--add"],
         format!("{}\n", add_payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     assert!(out.status.success());
 
@@ -89,7 +92,10 @@ fn test_security_ciphertext_tampering_rejected() {
         &bin,
         &["--set-cloud"],
         format!("{}\n", cloud_payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
 
     // Sync with password via stdin
@@ -98,7 +104,10 @@ fn test_security_ciphertext_tampering_rejected() {
         &bin,
         &["--sync"],
         format!("{}\n", password).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     assert!(sync_out.status.success());
 
@@ -124,7 +133,10 @@ fn test_security_ciphertext_tampering_rejected() {
         &bin,
         &["--pull"],
         format!("{}\n", password).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     let pull_res: serde_json::Value =
         serde_json::from_slice(&pull_out.stdout).expect("parse pull json");
@@ -155,7 +167,10 @@ fn test_security_ciphertext_tampering_rejected() {
         &bin,
         &["--pull"],
         format!("{}\n", password).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     let pull_nonce_res: serde_json::Value =
         serde_json::from_slice(&pull_nonce_out.stdout).expect("parse pull json");
@@ -204,7 +219,10 @@ fn test_security_malicious_payload_and_shell_injection() {
         &bin,
         &["--add"],
         format!("{}\n", evil_payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     assert!(out.status.success());
 
@@ -270,7 +288,10 @@ fn test_storage_corrupted_json_recovery() {
         &bin,
         &["--add"],
         format!("{}\n", payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     assert!(add_out.status.success());
 
@@ -373,7 +394,10 @@ fn test_stress_high_volume_notes() {
         &bin,
         &["--add"],
         format!("{}\n", payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     assert!(add_large.status.success());
 
@@ -468,7 +492,10 @@ fn test_chaos_broken_cloud_timeout() {
         &bin,
         &["--add"],
         format!("{}\n", payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
 
     // 2. Point git remote to an invalid/non-existent destination
@@ -482,7 +509,10 @@ fn test_chaos_broken_cloud_timeout() {
         &bin,
         &["--set-cloud"],
         format!("{}\n", cloud_payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
 
     // 3. Attempt sync: must NOT hang and must fail gracefully with success=false
@@ -491,7 +521,10 @@ fn test_chaos_broken_cloud_timeout() {
         &bin,
         &["--sync"],
         b"any_password\n",
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     let elapsed = t0.elapsed();
 
@@ -527,14 +560,20 @@ fn test_chaos_broken_cloud_timeout() {
         &bin,
         &["--set-cloud"],
         format!("{}\n", rclone_payload).as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
 
     let rclone_out = run_engine(
         &bin,
         &["--sync"],
         b"any_password\n",
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     let rclone_json: serde_json::Value =
         serde_json::from_slice(&rclone_out.stdout).expect("parse rclone response");
@@ -560,7 +599,10 @@ fn test_security_payload_overrun_and_malformed_json() {
         &bin,
         &["--add"],
         b"{\"broken_json\": [unclosed\n",
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     assert!(!bad_out.status.success());
     let stderr = String::from_utf8_lossy(&bad_out.stderr);
@@ -573,7 +615,10 @@ fn test_security_payload_overrun_and_malformed_json() {
         &bin,
         &["--add"],
         huge_payload.as_bytes(),
-        &[("OMANOTES_DATA_DIR", &test_dir), ("OMANOTES_STATE_DIR", &test_dir)],
+        &[
+            ("OMANOTES_DATA_DIR", &test_dir),
+            ("OMANOTES_STATE_DIR", &test_dir),
+        ],
     );
     assert!(!overrun_out.status.success());
     let err_str = String::from_utf8_lossy(&overrun_out.stderr);

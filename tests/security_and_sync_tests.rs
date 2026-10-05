@@ -215,10 +215,7 @@ fn test_git_e2ee_cloud_sync_and_pull_roundtrip() {
     );
 
     // 8. Pull with WRONG password must fail
-    let bad_pull = run_cargo_stdin(
-        &["run", "--quiet", "--", "--pull"],
-        b"wrong_password\n",
-    );
+    let bad_pull = run_cargo_stdin(&["run", "--quiet", "--", "--pull"], b"wrong_password\n");
     let bad_json: serde_json::Value =
         serde_json::from_slice(&bad_pull.stdout).expect("parse bad pull");
     assert_eq!(bad_json["success"], false, "Wrong password pull must fail");
