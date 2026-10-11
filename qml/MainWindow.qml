@@ -350,23 +350,16 @@ Item {
                                 color: Theme.textMuted
                             }
 
-                            TextInput {
+                            BoundedTextInput {
                                 id: noteSearchInput
                                 Layout.fillWidth: true
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 11
                                 color: Theme.textMain
-                                clip: true
+                                placeholderText: "Search notes and items..."
+                                placeholderTextColor: Theme.textDim
+                                maxLength: 256
                                 onTextChanged: root.searchQuery = text
-
-                                Text {
-                                    anchors.fill: parent
-                                    text: "Search notes and items..."
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: 11
-                                    color: Theme.textDim
-                                    visible: !noteSearchInput.text && !noteSearchInput.activeFocus
-                                }
                             }
                         }
                     }
