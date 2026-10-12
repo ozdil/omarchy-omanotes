@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "qml"
 
 Panel {
   id: root
@@ -574,13 +575,37 @@ Panel {
             width: parent.width
             spacing: Style.space(8)
 
-            TextField {
-              id: e2eePwdField
+            // Non-editor password input: no IME surrounding text, no selection,
+            // no accessibility text, no automatic clipboard read; bounded paste.
+            Rectangle {
               Layout.fillWidth: true
-              placeholderText: "Enter E2EE Master Password..."
-              text: root.e2eeInputPassword
-              echoMode: TextInput.Password
-              onTextChanged: root.e2eeInputPassword = text
+              implicitHeight: Style.space(34)
+              radius: Style.space(6)
+              color: "transparent"
+              border.width: 1
+              border.color: e2eePwdField.activeFocus ? Color.accent : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.25)
+
+              BoundedPasswordInput {
+                id: e2eePwdField
+                anchors.fill: parent
+                leftPadding: Style.space(8)
+                rightPadding: Style.space(8)
+                font.family: root.fontFamily
+                placeholderTextColor: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+                maskColor: root.bar ? root.bar.foreground : Color.foreground
+                maxLength: 256
+                placeholderText: "Enter E2EE Master Password..."
+                text: root.e2eeInputPassword
+                onTextChanged: if (root.e2eeInputPassword !== text) root.e2eeInputPassword = text
+
+                Connections {
+                  target: root
+                  function onE2eeInputPasswordChanged() {
+                    if (e2eePwdField.text !== root.e2eeInputPassword)
+                      e2eePwdField.text = root.e2eeInputPassword;
+                  }
+                }
+              }
             }
 
             Button {
@@ -632,10 +657,28 @@ Panel {
               font.pixelSize: Style.font.caption
             }
 
-            TextField {
+            // TextEdit-based bounded input (no unbounded automatic clipboard read; bounded paste)
+            Rectangle {
               width: parent.width
-              text: root.cloudRemoteInput
-              onTextChanged: root.cloudRemoteInput = text
+              implicitHeight: Style.space(34)
+              radius: Style.space(6)
+              color: "transparent"
+              border.width: 1
+              border.color: cloudRemoteField.activeFocus ? Color.accent : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.25)
+
+              BoundedTextInput {
+                id: cloudRemoteField
+                anchors.fill: parent
+                leftPadding: Style.space(8)
+                rightPadding: Style.space(8)
+                verticalAlignment: TextEdit.AlignVCenter
+                font.family: root.fontFamily
+                placeholderTextColor: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+                color: root.bar ? root.bar.foreground : Color.foreground
+                maxLength: 512
+                text: root.cloudRemoteInput
+                onTextChanged: root.cloudRemoteInput = text
+              }
             }
           }
 
@@ -652,11 +695,29 @@ Panel {
               font.pixelSize: Style.font.caption
             }
 
-            TextField {
+            // TextEdit-based bounded input (no unbounded automatic clipboard read; bounded paste)
+            Rectangle {
               width: parent.width
-              text: root.cloudGitInput
-              placeholderText: "/home/ozdil/Documents/notes-vault"
-              onTextChanged: root.cloudGitInput = text
+              implicitHeight: Style.space(34)
+              radius: Style.space(6)
+              color: "transparent"
+              border.width: 1
+              border.color: cloudGitField.activeFocus ? Color.accent : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.25)
+
+              BoundedTextInput {
+                id: cloudGitField
+                anchors.fill: parent
+                leftPadding: Style.space(8)
+                rightPadding: Style.space(8)
+                verticalAlignment: TextEdit.AlignVCenter
+                font.family: root.fontFamily
+                placeholderTextColor: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+                color: root.bar ? root.bar.foreground : Color.foreground
+                maxLength: 1024
+                text: root.cloudGitInput
+                placeholderText: "~/Documents/notes-vault"
+                onTextChanged: root.cloudGitInput = text
+              }
             }
           }
 
@@ -764,18 +825,54 @@ Panel {
               anchors.margins: Style.space(10)
               spacing: Style.space(8)
 
-              TextField {
+              // TextEdit-based bounded input (no unbounded automatic clipboard read; bounded paste)
+              Rectangle {
                 width: parent.width
-                placeholderText: "Title..."
-                text: root.newNoteTitle
-                onTextChanged: root.newNoteTitle = text
+                implicitHeight: Style.space(34)
+                radius: Style.space(6)
+                color: "transparent"
+                border.width: 1
+                border.color: newNoteTitleField.activeFocus ? Color.accent : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.25)
+
+                BoundedTextInput {
+                  id: newNoteTitleField
+                  anchors.fill: parent
+                  leftPadding: Style.space(8)
+                  rightPadding: Style.space(8)
+                  verticalAlignment: TextEdit.AlignVCenter
+                  font.family: root.fontFamily
+                  placeholderTextColor: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+                  color: root.bar ? root.bar.foreground : Color.foreground
+                  maxLength: 256
+                  placeholderText: "Title..."
+                  text: root.newNoteTitle
+                  onTextChanged: root.newNoteTitle = text
+                }
               }
 
-              TextField {
+              // TextEdit-based bounded input (no unbounded automatic clipboard read; bounded paste)
+              Rectangle {
                 width: parent.width
-                placeholderText: root.isCreatingChecklist ? "Checklist items (one per line)..." : "Take a note..."
-                text: root.newNoteContent
-                onTextChanged: root.newNoteContent = text
+                implicitHeight: Style.space(34)
+                radius: Style.space(6)
+                color: "transparent"
+                border.width: 1
+                border.color: newNoteContentField.activeFocus ? Color.accent : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.25)
+
+                BoundedTextInput {
+                  id: newNoteContentField
+                  anchors.fill: parent
+                  leftPadding: Style.space(8)
+                  rightPadding: Style.space(8)
+                  verticalAlignment: TextEdit.AlignVCenter
+                  font.family: root.fontFamily
+                  placeholderTextColor: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+                  color: root.bar ? root.bar.foreground : Color.foreground
+                  maxLength: 4096
+                  placeholderText: root.isCreatingChecklist ? "Checklist items (one per line)..." : "Take a note..."
+                  text: root.newNoteContent
+                  onTextChanged: root.newNoteContent = text
+                }
               }
 
               RowLayout {

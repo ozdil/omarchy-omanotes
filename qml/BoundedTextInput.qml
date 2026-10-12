@@ -14,7 +14,6 @@ TextEdit {
     property bool multiline: false
 
     signal accepted()
-    signal textEdited()
 
     wrapMode: multiline ? TextEdit.Wrap : TextEdit.NoWrap
     textFormat: TextEdit.PlainText
@@ -123,11 +122,15 @@ TextEdit {
 
     Text {
         anchors.fill: parent
+        anchors.leftMargin: control.leftPadding
+        anchors.rightMargin: control.rightPadding
+        anchors.topMargin: control.topPadding
+        anchors.bottomMargin: control.bottomPadding
         text: control.placeholderText
         font: control.font
         color: control.placeholderTextColor
         visible: control.text.length === 0 && !control.activeFocus
-        verticalAlignment: control.multiline ? Text.AlignTop : Text.AlignVCenter
+        verticalAlignment: control.multiline ? Text.AlignTop : control.verticalAlignment
         elide: Text.ElideRight
         textFormat: Text.PlainText
     }
