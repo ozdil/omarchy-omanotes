@@ -10,12 +10,49 @@ const PBKDF2_ITERATIONS: u32 = 10_000;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 
+// Strict application policy bounds for Argon2 KDF parameters to defend against
+// unauthenticated cloud-envelope resource exhaustion (DoS) before AES-GCM verification.
+pub const KDF_MAX_M_COST: u32 = 262_144; // 256 MiB upper memory bound
+pub const KDF_MIN_M_COST: u32 = 8_192;   // 8 MiB lower memory bound
+pub const KDF_MAX_T_COST: u32 = 10;      // 10 maximum time iterations
+pub const KDF_MIN_T_COST: u32 = 1;       // 1 minimum time iteration
+pub const KDF_MAX_P_COST: u32 = 4;       // 4 maximum parallel lanes
+pub const KDF_MIN_P_COST: u32 = 1;       // 1 minimum parallel lane
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct KdfParams {
     pub algorithm: String,
     pub m_cost: u32,
     pub t_cost: u32,
     pub p_cost: u32,
+}
+
+impl KdfParams {
+    /// Validates that KDF parameters adhere to the strict application policy ceiling
+    pub fn validate_policy(&self) -> Result<(), String> {
+        if self.algorithm.to_lowercase() != "argon2id" {
+            return Err(format!("Unsupported KDF algorithm: {}", self.algorithm));
+        }
+        if self.m_cost < KDF_MIN_M_COST || self.m_cost > KDF_MAX_M_COST {
+            return Err(format!(
+                "KDF m_cost ({} KiB) out of allowed policy bounds [{} - {} KiB]",
+                self.m_cost, KDF_MIN_M_COST, KDF_MAX_M_COST
+            ));
+        }
+        if self.t_cost < KDF_MIN_T_COST || self.t_cost > KDF_MAX_T_COST {
+            return Err(format!(
+                "KDF t_cost ({}) out of allowed policy bounds [{} - {}]",
+                self.t_cost, KDF_MIN_T_COST, KDF_MAX_T_COST
+            ));
+        }
+        if self.p_cost < KDF_MIN_P_COST || self.p_cost > KDF_MAX_P_COST {
+            return Err(format!(
+                "KDF p_cost ({}) out of allowed policy bounds [{} - {}]",
+                self.p_cost, KDF_MIN_P_COST, KDF_MAX_P_COST
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Default for KdfParams {
@@ -73,9 +110,7 @@ pub fn derive_key_argon2id(
     salt: &[u8],
     params: &KdfParams,
 ) -> Result<[u8; 32], String> {
-    if params.algorithm.to_lowercase() != "argon2id" {
-        return Err(format!("Unsupported KDF algorithm: {}", params.algorithm));
-    }
+    params.validate_policy()?;
     let argon2_params = Params::new(params.m_cost, params.t_cost, params.p_cost, Some(32))
         .map_err(|e| format!("Invalid Argon2 parameters: {}", e))?;
 
@@ -265,6 +300,55 @@ mod tests {
         let envelope = encrypt_payload(data, &key1, &salt).expect("encryption");
 
         let res = decrypt_envelope(&envelope, "wrong_password");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_unbounded_kdf_params_strictly_rejected() {
+        let password = "test_password";
+        let salt = generate_salt().expect("salt");
+
+        // 1. Extreme m_cost (e.g. 4 TiB request via 4_000_000_000 KiB)
+        let malicious_m_cost = KdfParams {
+            algorithm: "argon2id".to_string(),
+            m_cost: 4_000_000_000,
+            t_cost: 3,
+            p_cost: 1,
+        };
+        let res = derive_key_argon2id(password, &salt, &malicious_m_cost);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("out of allowed policy bounds"));
+
+        // 2. Extreme t_cost (e.g. 1000 iterations to stall CPU)
+        let malicious_t_cost = KdfParams {
+            algorithm: "argon2id".to_string(),
+            m_cost: 65536,
+            t_cost: 1000,
+            p_cost: 1,
+        };
+        let res = derive_key_argon2id(password, &salt, &malicious_t_cost);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("out of allowed policy bounds"));
+
+        // 3. Extreme p_cost (e.g. 256 parallel lanes to exhaust thread pool)
+        let malicious_p_cost = KdfParams {
+            algorithm: "argon2id".to_string(),
+            m_cost: 65536,
+            t_cost: 3,
+            p_cost: 256,
+        };
+        let res = derive_key_argon2id(password, &salt, &malicious_p_cost);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("out of allowed policy bounds"));
+
+        // 4. Unsupported algorithm name
+        let malicious_algo = KdfParams {
+            algorithm: "scrypt".to_string(),
+            m_cost: 65536,
+            t_cost: 3,
+            p_cost: 1,
+        };
+        let res = derive_key_argon2id(password, &salt, &malicious_algo);
         assert!(res.is_err());
     }
 }
