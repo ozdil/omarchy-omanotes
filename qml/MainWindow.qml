@@ -150,6 +150,7 @@ Item {
                 spacing: 12
 
                 Text {
+                    textFormat: Text.PlainText
                     text: Theme.iconNote
                     font.family: Theme.iconFont
                     font.pixelSize: 24
@@ -159,6 +160,7 @@ Item {
                 ColumnLayout {
                     spacing: 2
                     Text {
+                        textFormat: Text.PlainText
                         text: "OMANOTES ENCRYPTED VAULT"
                         font.family: Theme.fontFamily
                         font.pixelSize: 15
@@ -166,6 +168,7 @@ Item {
                         color: Theme.textMain
                     }
                     Text {
+                        textFormat: Text.PlainText
                         text: "Argon2id & AES-256-GCM Secure Markdown & Checklist Notes"
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
@@ -190,6 +193,7 @@ Item {
                         spacing: 8
 
                         Text {
+                            textFormat: Text.PlainText
                             text: root.e2eeEnabled ? Theme.iconLock : Theme.iconUnlock
                             font.family: Theme.iconFont
                             font.pixelSize: 12
@@ -197,6 +201,7 @@ Item {
                         }
 
                         Text {
+                            textFormat: Text.PlainText
                             text: root.e2eeEnabled ? "E2EE ENCRYPTED" : "STANDARD VAULT"
                             font.family: Theme.monoFont
                             font.pixelSize: 10
@@ -221,12 +226,14 @@ Item {
                         spacing: 6
 
                         Text {
+                            textFormat: Text.PlainText
                             text: Theme.iconPlus
                             font.family: Theme.iconFont
                             font.pixelSize: 12
                             color: Theme.accentSuccess
                         }
                         Text {
+                            textFormat: Text.PlainText
                             text: "New Checklist"
                             font.family: Theme.fontFamily
                             font.pixelSize: 11
@@ -252,6 +259,7 @@ Item {
                     border.width: 1
 
                     Text {
+                        textFormat: Text.PlainText
                         anchors.centerIn: parent
                         text: Theme.iconRefresh
                         font.family: Theme.iconFont
@@ -311,6 +319,7 @@ Item {
                                 border.width: 1
 
                                 Text {
+                                    textFormat: Text.PlainText
                                     anchors.centerIn: parent
                                     text: modelData.name
                                     font.family: Theme.fontFamily
@@ -344,6 +353,7 @@ Item {
                             spacing: 6
 
                             Text {
+                                textFormat: Text.PlainText
                                 text: Theme.iconSearch
                                 font.family: Theme.iconFont
                                 font.pixelSize: 12
@@ -397,6 +407,7 @@ Item {
                                     spacing: 6
 
                                     Text {
+                                        textFormat: Text.PlainText
                                         text: modelData.is_checklist ? Theme.iconList : Theme.iconNote
                                         font.family: Theme.iconFont
                                         font.pixelSize: 12
@@ -404,6 +415,7 @@ Item {
                                     }
 
                                     Text {
+                                        textFormat: Text.PlainText
                                         Layout.fillWidth: true
                                         text: modelData.title || "Untitled Note"
                                         font.family: Theme.fontFamily
@@ -414,6 +426,7 @@ Item {
                                     }
 
                                     Text {
+                                        textFormat: Text.PlainText
                                         visible: !!modelData.pinned
                                         text: Theme.iconPin
                                         font.family: Theme.iconFont
@@ -423,6 +436,7 @@ Item {
                                 }
 
                                 Text {
+                                    textFormat: Text.PlainText
                                     Layout.fillWidth: true
                                     text: modelData.is_checklist ? ((modelData.checklist_items ? modelData.checklist_items.length : 0) + " items") : (modelData.content || "Empty content")
                                     font.family: Theme.fontFamily
@@ -434,6 +448,7 @@ Item {
                         }
 
                         Text {
+                            textFormat: Text.PlainText
                             anchors.centerIn: parent
                             visible: root.displayNotes.length === 0
                             text: "No notes found."
@@ -466,6 +481,7 @@ Item {
                         spacing: 8
 
                         Text {
+                            textFormat: Text.PlainText
                             Layout.fillWidth: true
                             text: root.selectedNote ? (root.selectedNote.title || "Untitled Note") : ""
                             font.family: Theme.fontFamily
@@ -485,6 +501,7 @@ Item {
                             border.width: 1
 
                             Text {
+                                textFormat: Text.PlainText
                                 anchors.centerIn: parent
                                 text: Theme.iconPin
                                 font.family: Theme.iconFont
@@ -509,6 +526,7 @@ Item {
                             border.width: 1
 
                             Text {
+                                textFormat: Text.PlainText
                                 anchors.centerIn: parent
                                 text: Theme.iconArchive
                                 font.family: Theme.iconFont
@@ -533,6 +551,7 @@ Item {
                             border.width: 1
 
                             Text {
+                                textFormat: Text.PlainText
                                 anchors.centerIn: parent
                                 text: Theme.iconCopy
                                 font.family: Theme.iconFont
@@ -557,6 +576,7 @@ Item {
                             border.width: 1
 
                             Text {
+                                textFormat: Text.PlainText
                                 anchors.centerIn: parent
                                 text: Theme.iconTrash
                                 font.family: Theme.iconFont
@@ -613,6 +633,7 @@ Item {
                                 spacing: 10
 
                                 Text {
+                                    textFormat: Text.PlainText
                                     text: modelData.checked ? Theme.iconCheckSquare : Theme.iconSquare
                                     font.family: Theme.iconFont
                                     font.pixelSize: 14
@@ -620,6 +641,7 @@ Item {
                                 }
 
                                 Text {
+                                    textFormat: Text.PlainText
                                     Layout.fillWidth: true
                                     text: modelData.text || ""
                                     font.family: Theme.fontFamily
@@ -640,6 +662,7 @@ Item {
                         clip: true
 
                         TextArea {
+                            textFormat: TextEdit.PlainText
                             text: (root.selectedNote && root.selectedNote.content) ? root.selectedNote.content : ""
                             font.family: Theme.fontFamily
                             font.pixelSize: 13
@@ -652,6 +675,7 @@ Item {
                 }
 
                 Text {
+                    textFormat: Text.PlainText
                     anchors.centerIn: parent
                     visible: root.selectedNote === null
                     text: "Select a note from the left panel to inspect and manage."
