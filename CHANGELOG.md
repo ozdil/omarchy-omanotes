@@ -2,6 +2,11 @@
 
 All notable changes to OmaNotes will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- The standalone dashboard (`qml/MainWindow.qml`) renders every label, including imported note titles, content and checklist text, as plain text. With Qt's default `AutoText`, image markup in an imported note could start an automatic external download with no size limit.
+
 ## [1.4.0] - 2026-10-05
 
 ### Added
