@@ -46,6 +46,8 @@ fi
 SOURCE_HASH=""
 if [[ -d "${DIR}/src" && -f "${DIR}/Cargo.toml" && -f "${DIR}/Cargo.lock" ]]; then
     SOURCE_HASH="$(/usr/bin/find "${DIR}/src" "${DIR}/Cargo.toml" "${DIR}/Cargo.lock" -type f 2>/dev/null | /usr/bin/sort | /usr/bin/xargs /usr/bin/sha256sum 2>/dev/null | /usr/bin/sha256sum | /usr/bin/awk '{print $1}')"
+elif [[ ( "${DIR}" == "/usr/lib/omarchy/plugins/omanotes" || "${DIR}" == "/usr/share/omarchy/plugins/ozdil.omanotes" ) && -f "${STAMP}" ]]; then
+    read -r SOURCE_HASH _ < "${STAMP}" 2>/dev/null || true
 fi
 
 NEEDS_BUILD=1
